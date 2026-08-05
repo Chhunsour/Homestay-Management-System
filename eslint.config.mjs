@@ -41,4 +41,9 @@ export default tseslint.config(
     languageOptions: { sourceType: 'commonjs' },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
+  {
+    // CLI scripts: printing their results is the whole point.
+    files: ['scripts/**/*.mjs', 'supabase/tests/*.mjs'],
+    rules: { 'no-console': 'off' },
+  },
 );

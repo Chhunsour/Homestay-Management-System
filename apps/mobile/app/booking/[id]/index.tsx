@@ -29,6 +29,7 @@ import {
   Title,
   colors,
 } from '@/components/ui';
+import { BookingPayments } from '@/components/BookingPayments';
 import { ChoiceGroup } from '@/components/ChoiceGroup';
 import { Loading } from '@/components/Loading';
 import { useSession } from '@/lib/session';
@@ -260,6 +261,8 @@ export default function BookingDetailScreen() {
           <Row label={t('booking.price.override.reason')} value={booking.price_override_reason} />
         ) : null}
       </Card>
+
+      <BookingPayments bookingId={booking.id} />
 
       <Card>
         <Row label={t('booking.note')} value={booking.note || t('common.notSet')} />

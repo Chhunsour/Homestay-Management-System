@@ -5,6 +5,8 @@ import {
   BOOKING_STATUS_CODES,
   CURRENCIES,
   LOCALES,
+  PAYMENT_METHODS,
+  RECORDABLE_PAYMENT_TYPES,
   TIMEZONE_OPTIONS,
 } from './constants.ts';
 import { isValidPhone } from './phone.ts';
@@ -328,6 +330,90 @@ export const pendingResolutionSchema = z.object({
   action: z.enum(['keep', 'release']),
 });
 export type PendingResolutionInput = z.infer<typeof pendingResolutionSchema>;
+
+// --- payments (Phase 5) -----------------------------------------------------
+//
+// The record-payment form is the one an owner fills in on a phone while the
+// Messenger thread is still open: amount, method, done. Everything else is
+// optional, and no rule here rejects a payment for being smaller than the
+// deposit — a guest who sends $20 sent $20.
+
+/** Money coming in or going back out. Zero is not a payment. */
+const amountSchema = z.coerce
+  .number('validation.price')
+  .gt(0, 'validation.price')
+  .lte(9_999_999_999, 'validation.tooLong');
+
+/** Shared by every override and correction: a reason nobody can skim past. */
+const reasonSchema = z
+  .string()
+  .trim()
+  .min(3, 'validation.tooShort')
+  .max(300, 'validation.tooLong');
+
+export const paymentSchema = z
+  .object({
+    bookingId: z.uuid('validation.required'),
+    amount: amountSchema,
+    method: z.enum(PAYMENT_METHODS),
+    paymentType: z.enum(RECORDABLE_PAYMENT_TYPES),
+    /** Blank means "now", which is what the quick form posts. */
+    paidAt: z
+      .union([z.literal(''), localDateTimeSchema])
+      .optional()
+      .transform((value) => (value ? value : null)),
+    reference: optionalString(120),
+    payerName: optionalString(160),
+    note: optionalString(1000),
+    duplicateOverride: checkboxSchema,
+    overpaymentOverride: checkboxSchema,
+    overrideReason: optionalString(300),
+  })
+  // Same rule as the CHECK constraint and the RPC; this one names the field.
+  .refine(
+    (value) =>
+      (!value.duplicateOverride && !value.overpaymentOverride) ||
+      (value.overrideReason ?? '').length >= 3,
+    { path: ['overrideReason'], message: 'validation.required' },
+  );
+export type PaymentInput = z.infer<typeof paymentSchema>;
+
+/** A wrong amount is corrected, never rewritten: the old one is kept. */
+export const paymentCorrectionSchema = z.object({
+  paymentId: z.uuid('validation.required'),
+  amount: amountSchema,
+  reason: reasonSchema,
+  method: z.enum(PAYMENT_METHODS).optional(),
+  paidAt: z
+    .union([z.literal(''), localDateTimeSchema])
+    .optional()
+    .transform((value) => (value ? value : null)),
+  reference: optionalString(120),
+  payerName: optionalString(160),
+  note: optionalString(1000),
+});
+export type PaymentCorrectionInput = z.infer<typeof paymentCorrectionSchema>;
+
+export const paymentRefundSchema = z.object({
+  paymentId: z.uuid('validation.required'),
+  amount: amountSchema,
+  reason: reasonSchema,
+  method: z.enum(PAYMENT_METHODS).optional(),
+});
+export type PaymentRefundInput = z.infer<typeof paymentRefundSchema>;
+
+export const paymentVoidSchema = z.object({
+  paymentId: z.uuid('validation.required'),
+  reason: reasonSchema,
+});
+export type PaymentVoidInput = z.infer<typeof paymentVoidSchema>;
+
+export const receiptSchema = z.object({
+  bookingId: z.uuid('validation.required'),
+  paymentId: optionalUuid,
+  language: z.enum(LOCALES),
+});
+export type ReceiptInput = z.infer<typeof receiptSchema>;
 
 /** Collapses a ZodError into `{ field: i18nKey }` for form rendering. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

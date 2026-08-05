@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from '@/lib/storage';
 import type { User } from '@supabase/supabase-js';
 import {
   DEFAULT_LOCALE,
@@ -41,22 +41,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [businessReady, setBusinessReady] = useState(false);
 
-  // Session restoration: read whatever AsyncStorage kept from the last run.
+  // Session restoration: read whatever safeStorage kept from the last run.
   useEffect(() => {
     let active = true;
 
     void (async () => {
-      const stored = await AsyncStorage.getItem(LOCALE_STORAGE_KEY);
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      if (stored) setLocaleState(resolveLocale(stored));
-      setUser(data.session?.user ?? null);
-      setSessionReady(true);
+      try {
+        const stored = await safeStorage.getItem(LOCALE_STORAGE_KEY);
+        if (stored && active) setLocaleState(resolveLocale(stored));
+        const { data } = await supabase.auth.getSession();
+        if (active) setUser(data.session?.user ?? null);
+      } catch (err) {
+        console.warn('Failed to restore session:', err);
+      } finally {
+        if (active) setSessionReady(true);
+      }
     })();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setSessionReady(true);
+      if (active) {
+        setUser(session?.user ?? null);
+        setSessionReady(true);
+      }
     });
 
     return () => {
@@ -66,12 +72,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadBusiness = useCallback(async (): Promise<void> => {
-    const { data, error } = await supabase.rpc('current_business_context');
-    // The RPC is the only source of the caller's business and role; the client
-    // never chooses either. See docs/ARCHITECTURE.md.
-    const rows = (error ? [] : ((data ?? []) as BusinessContext[])) as BusinessContext[];
-    setBusiness(rows[0] ?? null);
-    setBusinessReady(true);
+    try {
+      const { data, error } = await supabase.rpc('current_business_context');
+      const rows = (error ? [] : ((data ?? []) as BusinessContext[])) as BusinessContext[];
+      setBusiness(rows[0] ?? null);
+    } catch (err) {
+      console.warn('Failed to load business context:', err);
+      setBusiness(null);
+    } finally {
+      setBusinessReady(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -87,7 +97,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const setLocale = useCallback(
     async (next: Locale): Promise<void> => {
       setLocaleState(next);
-      await AsyncStorage.setItem(LOCALE_STORAGE_KEY, next);
+      await safeStorage.setItem(LOCALE_STORAGE_KEY, next);
       // RLS limits this to the caller's own row; no user id is sent.
       if (user)
         await supabase.from('user_preferences').update({ language: next }).eq('user_id', user.id);
@@ -106,7 +116,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       refresh: loadBusiness,
       signOut: async () => {
         await supabase.auth.signOut();
-        await AsyncStorage.removeItem(LOCALE_STORAGE_KEY);
+        await safeStorage.removeItem(LOCALE_STORAGE_KEY);
       },
     }),
     [sessionReady, businessReady, user, business, locale, setLocale, loadBusiness],

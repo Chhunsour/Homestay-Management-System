@@ -141,7 +141,24 @@ export default function HomeScreen() {
         </>
       )}
 
-      {/* Money stays out of here until Phase 5: half a revenue figure is worse than none. */}
+      {money ? (
+        <>
+          <Text style={styles.section}>{t('payment.title')}</Text>
+          <Card>
+            <Row label={t('dashboard.unpaid')} value={money.unpaid} />
+            <Row label={t('dashboard.deposits')} value={money.awaitingDeposit} />
+            <Row
+              label={t('dashboard.balanceDue')}
+              value={formatMoney(locale, money.balanceDue, money.currency)}
+            />
+            <Row
+              label={t('dashboard.paidToday')}
+              value={formatMoney(locale, money.paidToday, money.currency)}
+            />
+          </Card>
+        </>
+      ) : null}
+
       <Card>
         <Row label={t('dashboard.role')} value={<Badge>{t(`role.${business.role}`)}</Badge>} />
         <Row label={t('dashboard.members')} value={business.member_count} />

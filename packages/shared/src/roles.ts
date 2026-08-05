@@ -41,7 +41,16 @@ export const PERMISSIONS = [
   'bookings.cancel',
   'bookings.restore',
   'bookings.pending.resolve',
+  // `payments.manage` covers seeing what a booking owes, recording a payment
+  // and uploading a proof — the 9pm Messenger screenshot. Everything below it
+  // is owner/manager only, and `payments.void` is the owner alone.
   'payments.manage',
+  'payments.verify',
+  'payments.correct',
+  'payments.refund',
+  'payments.void',
+  'payments.override',
+  'receipts.manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -67,13 +76,20 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'bookings.cancel',
     'bookings.pending.resolve',
     'payments.manage',
+    'payments.verify',
+    'payments.correct',
+    'payments.refund',
+    'payments.override',
+    'receipts.manage',
   ],
   // Staff see properties and their availability; they change nothing about them.
   // For customers they may search, create, correct contact details and add
   // notes — but not archive, edit someone else's note, import or bulk export.
   // For bookings they may view, create and edit — but never override a date
   // conflict or a price, customise statuses, or cancel and restore a booking.
-  staff: ['properties.read', 'customers.manage', 'bookings.manage'],
+  // For payments they record and upload proof — they never verify, correct,
+  // refund, void, or push past a duplicate or overpayment warning.
+  staff: ['properties.read', 'customers.manage', 'bookings.manage', 'payments.manage'],
 };
 
 /** Rank used for "you may not act on someone at or above your level" checks. */

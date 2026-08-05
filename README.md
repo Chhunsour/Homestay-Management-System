@@ -1,4 +1,4 @@
-# Homestay Manager — Phases 1–3
+# Homestay Manager — Phases 1–4
 
 Internal property-management SaaS for homestay, villa and resort operators.
 Owners, managers and staff use it; guests never do.
@@ -10,8 +10,12 @@ reserve a whole property, there is no room-level inventory. Phase 3 adds
 **customers**: phone-first records with Cambodian number normalization,
 duplicate detection, internal staff notes, archive/restore, CSV import and
 export. Customers never sign in and internal notes are never exposed publicly.
-Bookings, payments, OCR, reports, subscriptions and guest-facing pages remain
-out of scope.
+Phase 4 adds **bookings**: an availability calendar, weekday/weekend pricing
+with authorized manual override, customizable statuses, transaction-safe
+conflict detection with an audited override, and 30-minute pending holds that
+lapse into a review item rather than silently releasing the dates. Payments,
+OCR, receipts, reports, subscriptions and guest-facing pages remain out of
+scope.
 
 ## What is in the box
 
@@ -19,7 +23,7 @@ out of scope.
 | ---------------------- | -------------------------------------------------------------- |
 | `apps/web`             | Next.js 16 App Router dashboard (React 19, Tailwind v4)         |
 | `apps/mobile`          | Expo SDK 57 app (expo-router, React Native 0.86)                |
-| `packages/shared`      | Types, zod schemas, roles/permissions, availability, phone, CSV, i18n |
+| `packages/shared`      | Types, zod schemas, roles/permissions, availability, pricing, phone, CSV, i18n |
 | `supabase/migrations`  | PostgreSQL schema, RLS policies, storage policies and RPCs      |
 | `supabase/tests`       | SQL proof that tenants cannot see each other, plus an HTTP smoke test |
 | `docs`                 | Architecture, Supabase setup, per-phase feature and test plans   |
@@ -76,8 +80,8 @@ npm run lint         # eslint (flat config, repo-wide)
 npm run typecheck    # tsc --noEmit in every workspace
 npm test             # shared package unit tests (node --test)
 npm run build        # production build of apps/web
-npm run db:test      # reset the database, then run all three RLS suites
-npm run db:test:sql  # all three RLS suites without resetting
+npm run db:test      # reset the database, then run all four RLS suites
+npm run db:test:sql  # all four RLS suites without resetting
 npm run db:smoke     # HTTP smoke test: auth, PostgREST and Storage on a live stack
 ```
 
@@ -88,8 +92,9 @@ and PostgREST's schema cache, so run it before shipping a schema change.
 
 Manual checks and the alternative way to run the SQL suites against plain
 PostgreSQL are in [docs/PHASE_1_TESTING.md](docs/PHASE_1_TESTING.md),
-[docs/PHASE_2_TESTING.md](docs/PHASE_2_TESTING.md) and
-[docs/PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md).
+[docs/PHASE_2_TESTING.md](docs/PHASE_2_TESTING.md),
+[docs/PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md) and
+[docs/PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md).
 
 ## Security model in one paragraph
 
@@ -106,7 +111,14 @@ policies parse the tenant prefix out of the object key. Customers and their
 internal notes are tenanted the same way, archived rather than deleted, and
 their normalized phone numbers are derived by a database trigger rather than
 accepted from a client — so no forged value can hide a record from duplicate
-detection. No client ever sends a role or a business id it chose itself. See
+detection. Bookings go further: they are created and edited **only** through
+`save_booking`, which takes a per-property advisory lock before scanning for
+conflicts so two simultaneous requests cannot both win, and the only columns a
+client may `UPDATE` directly are the two note fields. Conflict and price
+overrides are permissions checked inside that RPC, each demanding a reason and
+recording who approved it. Booking numbers come from a counter keyed by
+business, unreadable to any client, so they leak nothing across tenants. No
+client ever sends a role or a business id it chose itself. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Documentation
@@ -120,3 +132,5 @@ detection. No client ever sends a role or a business id it chose itself. See
 | [PHASE_2_TESTING.md](docs/PHASE_2_TESTING.md)           | Phase 2 test plan and recorded results               |
 | [PHASE_3_CUSTOMERS.md](docs/PHASE_3_CUSTOMERS.md)       | Customers, phone normalization, notes, import/export |
 | [PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md)           | Phase 3 test plan and recorded results               |
+| [PHASE_4_BOOKINGS.md](docs/PHASE_4_BOOKINGS.md)         | Bookings, calendar, pricing, conflicts, pending holds |
+| [PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md)           | Phase 4 test plan and recorded results               |

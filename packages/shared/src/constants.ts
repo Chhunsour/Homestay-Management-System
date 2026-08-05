@@ -167,6 +167,98 @@ export const STATUS_COLORS = [
   '#be185d',
 ] as const;
 
+// --- payments (Phase 5) -----------------------------------------------------
+
+/** Mirrors the `public.payment_method` enum. */
+export const PAYMENT_METHODS = ['aba', 'khqr', 'bank_transfer', 'cash'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Mirrors the `public.payment_type` enum. This is a label for the receipt, not
+ * a rule: a 30% "deposit" and a 100% "deposit" are both recorded exactly as
+ * sent. `refund` rows are created only by `refund_payment()`.
+ */
+export const PAYMENT_TYPES = ['deposit', 'balance', 'full', 'refund', 'adjustment'] as const;
+export type PaymentType = (typeof PAYMENT_TYPES)[number];
+
+/** Types a human may pick when recording money coming in. */
+export const RECORDABLE_PAYMENT_TYPES = ['deposit', 'balance', 'full', 'adjustment'] as const;
+
+/** Mirrors the `public.payment_status` enum — the state of one payment row. */
+export const PAYMENT_STATUSES = ['recorded', 'verified', 'voided', 'refunded'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/** Mirrors the `public.payment_adjustment_action` enum. */
+export const PAYMENT_ADJUSTMENT_ACTIONS = ['void', 'correct', 'refund'] as const;
+export type PaymentAdjustmentAction = (typeof PAYMENT_ADJUSTMENT_ACTIONS)[number];
+
+/**
+ * How much of the total a booking needs before it is confirmed. The product
+ * rule is "50%", and it lives here once so the calculator, the SQL summary and
+ * the copy cannot disagree.
+ */
+export const DEPOSIT_PERCENT = 0.5;
+
+/** Derived state of a *booking*, computed from its payments. Never stored. */
+export const BOOKING_PAYMENT_STATUSES = [
+  'unpaid',
+  'partial',
+  'deposit_paid',
+  'paid',
+  'overpaid',
+  'refunded',
+] as const;
+export type BookingPaymentStatus = (typeof BOOKING_PAYMENT_STATUSES)[number];
+
+/** Private bucket holding payment screenshots. See docs/SUPABASE_SETUP.md. */
+export const PAYMENT_PROOF_BUCKET = 'payment-proofs';
+
+/** Also enforced by the bucket itself and by a CHECK on payment_proofs. */
+export const PROOF_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+export type ProofMimeType = (typeof PROOF_MIME_TYPES)[number];
+export const PROOF_MAX_BYTES = 10 * 1024 * 1024;
+
+export const PROOF_EXTENSIONS: Record<ProofMimeType, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+};
+
+export function isProofMimeType(value: string): value is ProofMimeType {
+  return (PROOF_MIME_TYPES as readonly string[]).includes(value);
+}
+
+/** Same reason as `propertyPhotoPath`: the storage policies parse this shape. */
+export function paymentProofPath(args: {
+  businessId: string;
+  paymentId: string;
+  fileName: string;
+}): string {
+  return `businesses/${args.businessId}/payments/${args.paymentId}/${args.fileName}`;
+}
+
+/**
+ * Two payments of the same amount this far apart are treated as a possible
+ * double entry. Mirrors the interval in `public.payment_duplicates()`.
+ */
+export const PAYMENT_DUPLICATE_MINUTES = 30;
+
+/** List filters on both apps. */
+export const PAYMENT_FILTERS = ['all', 'recorded', 'verified', 'voided', 'refunded'] as const;
+export type PaymentFilter = (typeof PAYMENT_FILTERS)[number];
+
+export function isPaymentFilter(value: unknown): value is PaymentFilter {
+  return typeof value === 'string' && (PAYMENT_FILTERS as readonly string[]).includes(value);
+}
+
+export const PAYMENT_PAGE_SIZE = 25;
+
 /** Cookie / storage key used to persist the chosen language before sign-in. */
 export const LOCALE_STORAGE_KEY = 'homestay.locale';
 

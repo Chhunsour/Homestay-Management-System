@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { createTranslator, formatDateTime, statusLabel } from '@homestay/shared';
+import { createTranslator, formatDateTime, formatMoney, statusLabel } from '@homestay/shared';
 import type { BookingWithDetails, TranslationKey } from '@homestay/shared';
 import { StatusChip } from '@/components/bookings/StatusChip';
 import { DataRow, PageHeader, Panel } from '@/components/ui';
 import { getBusinessContext } from '@/lib/business';
 import { getLocale } from '@/lib/i18n';
 import { getDashboardBookings } from '@/lib/bookings';
+import { paymentDashboard } from '@/lib/payments';
 import { getSessionUser } from '@/lib/supabase/server';
 
 export default async function DashboardPage() {
@@ -15,13 +16,16 @@ export default async function DashboardPage() {
 
   const locale = await getLocale();
   const t = createTranslator(locale);
-  const [user, board] = await Promise.all([getSessionUser(), getDashboardBookings(context)]);
+  const [user, board, money] = await Promise.all([
+    getSessionUser(),
+    getDashboardBookings(context),
+    paymentDashboard(context),
+  ]);
   const { timezone } = context;
 
   const fullName = user?.user_metadata?.full_name;
   const name = typeof fullName === 'string' && fullName ? fullName : (user?.email ?? '');
 
-  // Money stays out of here until Phase 5: half a revenue figure is worse than none.
   function BookingList({
     titleKey,
     bookings,
@@ -79,11 +83,34 @@ export default async function DashboardPage() {
     );
   }
 
+  function Money({ labelKey, value }: { labelKey: TranslationKey; value: string }) {
+    return (
+      <Link href="/payments" className="panel block px-5 py-4 hover:bg-slate-50">
+        <p className="text-xs text-slate-600">{t(labelKey)}</p>
+        <p className="mt-1 text-xl font-semibold text-slate-900">{value}</p>
+      </Link>
+    );
+  }
+
   return (
     <>
       <PageHeader title={t('dashboard.title')} description={t('dashboard.welcome', { name })} />
 
       <div className="space-y-6">
+        {/* The four money questions an owner opens the app to answer. */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Money labelKey="dashboard.unpaid" value={String(money.unpaid)} />
+          <Money labelKey="dashboard.deposits" value={String(money.awaitingDeposit)} />
+          <Money
+            labelKey="dashboard.balanceDue"
+            value={formatMoney(locale, money.balanceDue, context.default_currency)}
+          />
+          <Money
+            labelKey="dashboard.paidToday"
+            value={formatMoney(locale, money.paidToday, context.default_currency)}
+          />
+        </div>
+
         {board.expired.length > 0 ? (
           <BookingList
             titleKey="dashboard.expired"

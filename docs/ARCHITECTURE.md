@@ -6,19 +6,22 @@
 homestay-saas/
 ├─ apps/
 │  ├─ mobile/                 Expo SDK 57 + expo-router
-│  │  ├─ app/                 file-based routes: (tabs)/, property/[id]/, customer/[id]/
+│  │  ├─ app/                 file-based routes: (tabs)/, property/[id]/, customer/[id]/, booking/[id]/
 │  │  └─ src/{lib,components}
 │  └─ web/                    Next.js 16 App Router
 │     └─ src/{app,components,lib}
 │        ├─ app/(app)/properties/    list, new, [id], [id]/edit
 │        ├─ app/(app)/guests/        list, new, [id], [id]/edit, import, export
+│        ├─ app/(app)/bookings/      list, new, [id], [id]/edit, statuses
+│        ├─ app/(app)/calendar/      month and week views
 │        ├─ components/properties/   PropertyForm, PricingForm, PhotoManager, BlockManager, PropertyStatusActions
 │        ├─ components/customers/    CustomerForm, CustomerNotes, CustomerStatusActions, ImportWizard
-│        └─ lib/{properties.ts, customers.ts, actions/{properties,customers}.ts}
+│        ├─ components/bookings/     BookingForm, BookingActions, StatusChip, StatusManager
+│        └─ lib/{properties.ts, customers.ts, bookings.ts, actions/{properties,customers,bookings}.ts}
 ├─ packages/shared/           types, zod schemas, roles, availability, i18n, formatting
 ├─ supabase/
 │  ├─ migrations/             schema → functions → policies → RPCs, per phase
-│  └─ tests/                  rls_isolation.sql, rls_properties.sql, rls_customers.sql, auth_stub.sql, smoke.mjs
+│  └─ tests/                  rls_isolation.sql, rls_properties.sql, rls_customers.sql, rls_bookings.sql, auth_stub.sql, smoke.mjs
 └─ docs/
 ```
 
@@ -39,11 +42,12 @@ using Node's native type stripping — the test suite needs zero dependencies.
 | `schemas.ts`     | zod schemas for every form; messages are translation keys           |
 | `i18n/`          | `en` and `km` dictionaries, `t()`, `resolveLocale`, `formatDate`, `formatMoney`, `toTimeInput` |
 | `authErrors.ts`  | Supabase auth error code → translation key                          |
-| `constants.ts`   | locales, currencies, timezones, block reasons, `WEEKEND_DAYS`, photo bucket/mime/size limits, `propertyPhotoPath()`, `CUSTOMER_FILTERS`, `CUSTOMER_PAGE_SIZE`, `CUSTOMER_IMPORT_MAX_ROWS` |
+| `constants.ts`   | locales, currencies, timezones, block reasons, `WEEKEND_DAYS`, photo bucket/mime/size limits, `propertyPhotoPath()`, `CUSTOMER_FILTERS`, `CUSTOMER_PAGE_SIZE`, `CUSTOMER_IMPORT_MAX_ROWS`, `BOOKING_STATUS_CODES`, `BLOCKING_STATUS_CODES`, `blocksDates()`, `DEFAULT_BOOKING_STATUSES`, `BOOKING_SOURCES`, `PENDING_EXPIRY_MINUTES`, `BOOKING_FILTERS`, `BOOKING_PAGE_SIZE`, `STATUS_COLORS` |
 | `availability.ts`| `checkAvailability`, `rangesOverlap`, `rateForNight`, `isWeekend`, `zonedTimeToUtc`, `utcToZonedInput` |
 | `phone.ts`       | `normalizePhone`, `isNormalizedPhone`, `isValidPhone`, `CAMBODIA_CALLING_CODE` |
 | `customers.ts`   | `customerSearchFilter`, `isSamePhone`, `duplicateRowIndexes`, `mapImportHeaders`, `parseCsv`, `parseCustomerCsv`, `toCsv` |
-| `types.ts`       | `BusinessContext`, `Profile`, `Business`, `Property`, `Customer`, … mirroring the SQL types |
+| `bookings.ts`    | `priceBooking`, `bookingDays`, `finalPrice`, `localDate`, `isWeekendDate`, `blocksDatesStatus`, `toOccupancy`, `statusLabel`, `findStatusByCode`, `isPendingExpired`, `pendingMinutesLeft`, `addMonths`, `monthGrid`, `weekGrid`, `coversDate`, `bookingSearchFilter`, `bookingErrorKey`, `conflictsFromError`, `isOverridable` |
+| `types.ts`       | `BusinessContext`, `Profile`, `Business`, `Property`, `Customer`, `Booking`, `BookingStatus`, `BookingWithDetails`, … mirroring the SQL types |
 
 Both apps import from `@homestay/shared` only — neither app defines a role, a
 permission or a user-facing string of its own.
@@ -58,7 +62,10 @@ auth.users ──1:1── profiles
                       │                             ├──< properties ──< property_photos
                       │                             │            ├──< property_pricing
                       │                             │            └──< property_blocks
-                      │                             └──< customers ──< customer_notes
+                      │                             ├──< customers ──< customer_notes
+                      │                             ├──< booking_statuses
+                      │                             ├──< booking_counters
+                      │                             └──< bookings ──< booking_status_history
                       └──1:1── user_preferences ── last_business_id ─→ businesses
 ```
 
@@ -91,6 +98,21 @@ auth.users ──1:1── profiles
   there is no `user_id` and no public route.
 - `customer_notes` — internal staff notes, `archived_at` instead of a delete.
   Nothing here is rendered anywhere a guest can reach.
+- `booking_statuses` — a per-business status list, seeded with Pending,
+  Confirmed, Completed and Cancelled by an `after insert` trigger on
+  `businesses`. Owners may rename, recolour, reorder and disable them; every
+  rule in the system reads the immutable `code`, never the editable `name`.
+- `bookings` — one stay of one whole property by one customer over
+  `[check_in_at, check_out_at)`. Holds its own `booking_number`, currency,
+  `calculated_price` **and** `final_price` (so a later price change never
+  rewrites history), the price and conflict override fields with their reasons
+  and approver, the source, both notes, and the pending-hold columns. The guest's
+  name and phone are not copied here — they are read from `customers`.
+- `booking_status_history` — who changed a booking's status and when, written by
+  a definer trigger; nobody holds INSERT on it.
+- `booking_counters` — `(business_id, year, last_number)`. No grants, no
+  policies; only `next_booking_number()` touches it, and its per-business key is
+  what keeps `BK-2026-000001` from leaking another tenant's volume.
 
 All PKs are `uuid default gen_random_uuid()`. Every table has
 `created_at`/`updated_at` and shares one `set_updated_at()` trigger function,
@@ -98,7 +120,7 @@ attached by a `do` block loop rather than nine copy-pasted `create trigger`
 statements.
 
 Enums (`business_role`, `member_status`, `app_locale`, `app_currency`,
-`block_reason`, `block_status`, `pricing_rule_type`) are PostgreSQL enums, so an
+`block_reason`, `block_status`, `pricing_rule_type`, `booking_status_code`) are PostgreSQL enums, so an
 invalid value cannot be stored even by a superuser.
 
 **Children carry their own `business_id`.** `properties` declares
@@ -107,8 +129,14 @@ invalid value cannot be stored even by a superuser.
 on delete cascade`. The database therefore guarantees a child's `business_id`
 equals its parent's, which lets every child policy check membership directly
 instead of joining up to the parent on every row. Properties are never hard
-deleted — `archived_at` is the normal end state, so future booking history keeps
-its foreign key.
+deleted — `archived_at` is the normal end state, so booking history keeps its
+foreign key.
+
+Bookings apply the same trick sideways rather than downwards: `property_id`,
+`customer_id` and `status_id` are all **composite** foreign keys carrying
+`business_id`, so a booking cannot reference another tenant's property, guest or
+status even if a client asks it to. All three are `on delete restrict`, and
+there is no DELETE grant on any booking table — cancellation is the end state.
 
 ## Authorization
 
@@ -122,7 +150,8 @@ RPC.
 **2. RLS policies.** Enabled on `profiles`, `businesses`, `business_members`,
 `business_settings`, `user_preferences`, `role_permissions`, `properties`,
 `property_photos`, `property_pricing`, `property_blocks`, `customers`,
-`customer_notes`, and on `storage.objects` for the photo bucket. Every policy
+`customer_notes`, `booking_statuses`, `bookings`, `booking_status_history`,
+`booking_counters`, and on `storage.objects` for the photo bucket. Every policy
 resolves the caller from `auth.uid()`; a client-supplied `business_id` is only
 ever a filter, never a grant. Reads are scoped by `is_business_member()`, writes
 by `has_business_permission()`. Archived properties are filtered out by the
@@ -136,6 +165,14 @@ guest. Read-only-ness comes from the update policy instead, which repeats
 `archived_at is null` in both USING and WITH CHECK — so a plain `UPDATE` can
 neither edit an archived customer nor archive a live one. Archiving is only
 `set_customer_archived()`.
+
+Bookings go one step further, because a date change has to be transaction-safe:
+`authenticated` gets `select` on `bookings` and a **column-level**
+`update (note, internal_note)`, and no INSERT policy at all. Dates, property,
+customer, status and price are therefore unreachable outside `save_booking()` —
+there is no code path to a booking change that has not been through the advisory
+lock and the conflict scan. `booking_counters` has RLS on and no policy, which
+denies everything.
 
 **3. SECURITY DEFINER functions**, all with `set search_path = public, pg_temp`:
 
@@ -165,9 +202,18 @@ policy rewrite. Phase 2 added six rows' worth of permissions:
 | `customers.notes.manage`    |  ✓    |   ✓     |       |
 | `customers.import`          |  ✓    |   ✓     |       |
 | `customers.export`          |  ✓    |   ✓     |       |
+| `bookings.manage`           |  ✓    |   ✓     |  ✓    |
+| `bookings.statuses.manage`  |  ✓    |         |       |
+| `bookings.conflict.override`|  ✓    |   ✓     |       |
+| `bookings.price.override`   |  ✓    |   ✓     |       |
+| `bookings.cancel`           |  ✓    |   ✓     |       |
+| `bookings.restore`          |  ✓    |         |       |
+| `bookings.pending.resolve`  |  ✓    |   ✓     |       |
 
 Archiving is the one property action a manager cannot perform — it is the
-closest thing to a delete, so it stays with the owner.
+closest thing to a delete, so it stays with the owner. Restoring a cancelled
+booking is the booking equivalent: it is the one action that can take dates back
+from whoever was given them after the cancellation.
 
 **RPCs for anything multi-step:**
 
@@ -183,6 +229,10 @@ closest thing to a delete, so it stays with the owner.
 | `set_customer_archived(...)` | needs `customers.archive`; the only way `archived_at` ever changes |
 | `import_customers(...)`      | needs `customers.import`; caps the batch at 500 rows and returns one `imported`/`duplicate`/`invalid` outcome per row — no partial silent failure |
 | `export_customers(...)`      | needs `customers.export`, so staff cannot bulk export; scoped to one business, with archived and search filters |
+| `check_booking_availability(...)` | needs `bookings.manage`; read-only, returns the conflict array the form shows |
+| `save_booking(...)`          | create **and** edit in one body; takes `pg_advisory_xact_lock` on the property, re-scans conflicts, re-prices from the rate card, and enforces the conflict, price, cancel and restore permissions before writing |
+| `set_booking_status(...)`    | needs `bookings.manage`; re-runs the conflict scan when moving back into a status that holds dates |
+| `resolve_pending_booking(...)` | needs `bookings.pending.resolve`; `keep` stamps the resolution, `release` cancels — nothing expires a booking automatically |
 
 Every one of them derives the actor from `auth.uid()` and re-reads the target
 row inside the function. No RPC accepts a role or an actor id from the client.
@@ -215,9 +265,18 @@ which resolves the offset from `Intl` in two passes — no date library. Weekend
 is Friday, Saturday and Sunday (`WEEKEND_DAYS`) evaluated in the business
 timezone, defaulting to `Asia/Phnom_Penh`.
 
-Phase 4 extends it by adding `'booking'` to `ConflictKind` and a `bookings`
-array to `AvailabilityInput`. Everything already written keeps working, because
+Phase 4 extended it by adding `'booking'` to `ConflictKind`, a `bookings` array
+and an `excludeBookingId` to `AvailabilityInput` — so a booking being edited does
+not conflict with itself. Everything already written kept working, because
 callers read the conflict list rather than reimplementing the rules.
+
+The database mirror is `booking_conflicts()`, using `tstzrange(a, b, '[)') &&`
+so the two agree on adjacency, and it is what `save_booking()` and
+`set_booking_status()` consult **inside the transaction, after taking the lock**.
+The TypeScript version drives the live warning in the form; the SQL version is
+the rule. `booking_calculated_price()` is the same arrangement for pricing: the
+apps preview with `priceBooking()`, the database recomputes and stores its own
+number, and only an authorized `p_final_price` with a reason changes the total.
 
 ## Web app
 
@@ -230,7 +289,8 @@ Next.js 16 App Router, React 19, Tailwind v4.
 - `(auth)/` — sign in, sign up, forgot password, reset password, verify.
 - `(app)/` — layout calls `getBusinessContext()`; a user with no business is
   sent to `/onboarding`. Sidebar has all eight sections; Dashboard, Properties,
-  Guests and Settings are real, the other four render the shared `Placeholder`.
+  Guests, Bookings, Calendar and Settings are real, the remaining two render the
+  shared `Placeholder`.
 - `(app)/properties/` — a card grid with server-side search (name and address)
   and an active/inactive filter, both held in `searchParams` so the URL is
   shareable and the back button works; `new`, `[id]` and `[id]/edit`. The detail
@@ -241,6 +301,13 @@ Next.js 16 App Router, React 19, Tailwind v4.
   `[id]`, `[id]/edit`, an `import` wizard that previews and classifies every CSV
   row before writing anything, and an `export` route handler that re-checks
   `customers.export` server-side before streaming CSV.
+- `(app)/bookings/` — a paginated list with search over booking number, guest
+  name and guest phone plus property, status and date filters, all in
+  `searchParams`; `new`, `[id]`, `[id]/edit` and a `statuses` screen for the
+  owner. The detail page composes the price breakdown, notes, `BookingActions`,
+  the conflict record and the expired-hold review.
+- `(app)/calendar/` — month and week views over the same data, with a property
+  filter; `view`, `date` and `propertyId` live in `searchParams`.
 - All mutations are Server Actions returning a common `ActionState`
   (`status`, `messageKey`, `fieldErrors`) that the client forms render through
   `useActionState`. Error text is always a translation key, never a string.
@@ -263,6 +330,16 @@ Expo SDK 57, expo-router, React Native 0.86.
   `PropertyForm`, `PhotoManager` and `BlockManager` from `src/components`. The
   list reloads on focus (`useFocusEffect`), so an edit is visible on the way
   back without a manual refresh.
+- `app/booking/[id]/`, `app/booking/new` — detail, edit and create, sharing one
+  `BookingForm` between quick entry, full create and edit. `new?from=<id>`
+  duplicates an existing booking as a draft. The quick form is the
+  Messenger/phone flow: property, guest and both dates required, price, source
+  and note optional, and a guest who is not on file can be created without
+  leaving the screen.
+- `(tabs)/calendar.tsx` — a month grid with a per-day count; tapping a day lists
+  that day's stays. `(tabs)/index.tsx` is the dashboard: today, check-ins,
+  checkouts, pending and expired holds, plus available properties. No money — that
+  is Phase 5.
 - `app/customer/[id]/`, `app/customer/new` — the same shape for customers,
   sharing `CustomerForm` and `CustomerNotes`. Search is debounced 300 ms with a
   plain `setTimeout` effect, and pagination grows `range(0, page * PAGE_SIZE)`
@@ -326,3 +403,17 @@ Phase 3:
 - No note authorship on mobile — the app has no member directory yet.
 - No customer tags, segments, loyalty or marketing consent.
 - Import is CSV only; no Excel binary formats.
+
+Phase 4:
+
+- No payments, receipts, OCR, invoices or revenue reports. The dashboard
+  deliberately shows counts and no totals.
+- No scheduled job for pending holds. Expiry is detected at read time and
+  surfaced prominently; `docs/PHASE_4_BOOKINGS.md` §5 documents the recommended
+  `pg_cron` shape, and that job must notify rather than cancel.
+- No automatic currency conversion. `bookings.exchange_rate` is a column Phase 5
+  will populate.
+- No recurring, group or multi-property bookings.
+- No booking deletion — cancel and restore; the row and its status history stay.
+- No native date picker on mobile and no drag-to-move on the web calendar; moving
+  a booking is an edit, which is the path that re-checks conflicts.

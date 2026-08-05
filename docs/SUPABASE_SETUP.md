@@ -55,6 +55,9 @@ Migrations run in filename order and are split by concern:
 | `20260804000900_customers.sql`           | `normalize_phone`, `customers`, `customer_notes`, the phone-normalisation trigger, CHECK constraints, both phone indexes |
 | `20260804001000_customers_rls.sql`       | the four `customers.*` permissions, REVOKE/GRANT and RLS policies for both tables |
 | `20260804001100_customers_rpc.sql`       | `set_customer_archived`, `import_customers`, `export_customers`        |
+| `20260804001200_bookings.sql`            | `booking_status_code` enum, `booking_statuses`, `booking_counters`, `bookings`, `booking_status_history`, the status seed trigger and back-fill, `booking_calculated_price`, `next_booking_number` |
+| `20260804001300_bookings_rls.sql`        | the six `bookings.*` permissions, REVOKE/GRANT (including the column-level `update (note, internal_note)` grant) and RLS policies for all four tables |
+| `20260804001400_bookings_rpc.sql`        | `booking_conflicts`, `check_booking_availability`, `save_booking`, `set_booking_status`, `resolve_pending_booking` |
 
 > **After a migration that adds or repoints a foreign key or a function**,
 > restart PostgREST — `docker restart supabase_rest_homestay-saas`. It keeps its
@@ -222,6 +225,43 @@ the app.
 If you ever recreate the bucket by hand, re-run the migration afterwards —
 creating it from the dashboard gives you an unrestricted bucket with no
 policies attached.
+
+### 3.8 Booking statuses — nothing to click
+
+Migration `20260804001200_bookings.sql` seeds Pending, Confirmed, Completed and
+Cancelled for every business through an `after insert` trigger on `businesses`,
+and back-fills any business that already existed. Do not create statuses from
+the dashboard: `is_system` rows are protected by a trigger, and a hand-made row
+with `is_system = true` would collide with the partial unique index on
+`(business_id, code)`.
+
+Owners customise them in the app at `/bookings/statuses`.
+
+### 3.9 Pending-hold expiry — optional, not required to ship
+
+A booking that enters `pending` holds its dates for 30 minutes
+(`PENDING_EXPIRY_MINUTES`). **Expiry never releases the dates** — an expired
+hold becomes a review item that an owner or manager resolves with
+`resolve_pending_booking(id, 'keep' | 'release')`.
+
+Detection is application-side and evaluated at read time, so no scheduling is
+required for the feature to work. Add a job only when you want the review list
+to reach people who are not looking at the dashboard:
+
+```sql
+create extension if not exists pg_cron;
+
+select cron.schedule('booking-holds', '*/5 * * * *', $$
+  select public.notify_expired_holds();   -- to be written in Phase 5
+$$);
+```
+
+Prefer `pg_cron` over a scheduled Edge Function — no network hop and no service
+key to leak. Whatever you build, **it must notify, not cancel**: releasing dates
+automatically would undo the rule the feature exists to enforce. Query through
+the partial index (`where pending_expires_at < now() and pending_resolved_at is
+null`) and make the job idempotent so a retry does not send a second message.
+`docs/PHASE_4_BOOKINGS.md` §5 has the full reasoning.
 
 ---
 

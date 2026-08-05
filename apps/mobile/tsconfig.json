@@ -2,12 +2,20 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["app", "src", "app.config.ts", "expo-env.d.ts"]
+  "include": [
+    "app",
+    "src",
+    "app.config.ts"
+  ]
 }

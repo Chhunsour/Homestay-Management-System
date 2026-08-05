@@ -6,6 +6,7 @@ export * from './availability.ts';
 export * from './bookings.ts';
 export * from './phone.ts';
 export * from './customers.ts';
+export * from './payments.ts';
 export * from './authErrors.ts';
 export * from './i18n/index.ts';
 export { en } from './i18n/en.ts';

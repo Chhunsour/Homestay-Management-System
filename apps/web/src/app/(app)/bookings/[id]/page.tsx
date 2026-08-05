@@ -11,6 +11,7 @@ import {
 } from '@homestay/shared';
 import { BookingActions } from '@/components/bookings/BookingActions';
 import { StatusChip } from '@/components/bookings/StatusChip';
+import { BookingPayments } from '@/components/payments/BookingPayments';
 import { DataRow, PageHeader, Panel, buttonStyles } from '@/components/ui';
 import { getBusinessContext } from '@/lib/business';
 import { getLocale } from '@/lib/i18n';
@@ -157,6 +158,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             ) : null}
           </dl>
         </Panel>
+
+        <BookingPayments bookingId={booking.id} context={context} locale={locale} />
 
         <Panel>
           <div className="px-5 py-3.5">
