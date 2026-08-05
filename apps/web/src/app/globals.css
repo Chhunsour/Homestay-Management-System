@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Inter for Latin, Noto Sans Khmer for ខ្មែរ, with the OS Khmer faces as a
+     fallback so the app still renders correctly offline. */
+  --font-sans:
+    'Inter', 'Noto Sans Khmer', 'Khmer OS Battambang', 'Khmer Sangkam MN', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', sans-serif;
+
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f6f7f9;
+  --color-line: #e2e5ea;
+
+  /* "Mostly rectangular with slight rounding". */
+  --radius-panel: 0.375rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-slate-800);
+    font-family: var(--font-sans);
+    /* Khmer glyphs sit taller than Latin; extra leading keeps both readable. */
+    line-height: 1.65;
+  }
+
+  :lang(km) {
+    line-height: 1.9;
+    letter-spacing: 0;
+    word-break: break-word;
+  }
+
+  /* Never remove focus rings — keyboard navigation depends on them. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-700);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .panel {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+  }
+}
