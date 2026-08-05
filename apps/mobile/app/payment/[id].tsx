@@ -16,7 +16,6 @@ import {
 } from '@homestay/shared';
 import type { Locale, PaymentWithDetails, TranslationKey } from '@homestay/shared';
 import {
-  Badge,
   Banner,
   Button,
   Card,
@@ -171,6 +170,7 @@ export default function PaymentDetailScreen() {
     .filter((adjustment) => adjustment.action === 'refund')
     .reduce((sum, adjustment) => sum + Number(adjustment.corrected_amount ?? 0), 0);
   const refundable = Math.max(Number(payment.amount) - refunded, 0);
+  const paymentId = payment.id;
 
   function confirmVoid(): void {
     if (reason.trim().length < 3) return setErrorKey('payment.reason.required');
@@ -180,7 +180,7 @@ export default function PaymentDetailScreen() {
         text: t('payment.void'),
         style: 'destructive',
         onPress: () =>
-          void run(() => voidPayment(payment.id, reason.trim()), 'payment.void.done'),
+          void run(() => voidPayment(paymentId, reason.trim()), 'payment.void.done'),
       },
     ]);
   }

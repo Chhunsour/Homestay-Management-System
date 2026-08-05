@@ -18,7 +18,7 @@ import type {
   OverpaymentDetail,
   TranslationKey,
 } from '@homestay/shared';
-import { Banner, Button, Field, Screen, Title, colors } from '@/components/ui';
+import { Banner, Button, Field, Screen, Title } from '@/components/ui';
 import { ChoiceGroup } from '@/components/ChoiceGroup';
 import { Loading } from '@/components/Loading';
 import { PaymentSummary } from '@/components/PaymentSummary';

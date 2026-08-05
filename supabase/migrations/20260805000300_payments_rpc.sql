@@ -134,10 +134,9 @@ begin
     return;                      -- an owner deactivated it; leave the booking alone
   end if;
 
+  -- The status trigger clears the hold columns on the way out of pending.
   update public.bookings
-  set status_id = v_confirmed,
-      -- The hold did its job; it is not pending any more.
-      pending_resolved_at = coalesce(pending_resolved_at, now())
+  set status_id = v_confirmed
   where id = p_booking_id;
 end;
 $$;
@@ -236,7 +235,7 @@ begin
         'currency', v_summary.currency)::text;
   end if;
 
-  select timezone into v_timezone from public.businesses where id = v_booking.business_id;
+  select timezone into v_timezone from public.business_settings where business_id = v_booking.business_id;
 
   insert into public.payments (
     business_id, booking_id, customer_id, payment_number,
@@ -503,7 +502,7 @@ begin
     raise exception 'invalid_amount' using errcode = '22023';
   end if;
 
-  select timezone into v_timezone from public.businesses where id = v_payment.business_id;
+  select timezone into v_timezone from public.business_settings where business_id = v_payment.business_id;
 
   insert into public.payments (
     business_id, booking_id, customer_id, payment_number,
@@ -582,7 +581,7 @@ begin
   end if;
 
   select * into v_summary from public.booking_payment_summary(p_booking_id);
-  select timezone into v_timezone from public.businesses where id = v_booking.business_id;
+  select timezone into v_timezone from public.business_settings where business_id = v_booking.business_id;
 
   select jsonb_build_object(
     'business_name', biz.name,
