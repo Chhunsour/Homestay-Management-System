@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Link, useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatDateTime, statusLabel } from '@homestay/shared';
+import { formatDateTime, formatMoney, statusLabel } from '@homestay/shared';
 import type { BookingWithDetails, TranslationKey } from '@homestay/shared';
 import {
   Badge,
@@ -19,6 +19,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { Loading } from '@/components/Loading';
 import { useSession } from '@/lib/session';
 import { getHomeBookings, type HomeBookings } from '@/lib/bookings';
+import { getHomeMoney, type HomeMoney } from '@/lib/payments';
 
 /** Up to five rows of one list; the tabs hold the full versions. */
 function BookingList({
@@ -69,23 +70,30 @@ function BookingList({
 }
 
 export default function HomeScreen() {
-  const { t, user, business, signOut } = useSession();
+  const { t, locale, user, business, signOut } = useSession();
 
   const [data, setData] = useState<HomeBookings | null>(null);
+  const [money, setMoney] = useState<HomeMoney | null>(null);
   const [failed, setFailed] = useState(false);
 
   const businessId = business?.business_id;
   const timezone = business?.timezone ?? 'Asia/Phnom_Penh';
+  const currency = business?.default_currency ?? 'USD';
 
   const load = useCallback(async (): Promise<void> => {
     if (!businessId) return;
     setFailed(false);
     try {
-      setData(await getHomeBookings(businessId, timezone));
+      const [bookings, totals] = await Promise.all([
+        getHomeBookings(businessId, timezone),
+        getHomeMoney(businessId, timezone, currency),
+      ]);
+      setData(bookings);
+      setMoney(totals);
     } catch {
       setFailed(true);
     }
-  }, [businessId, timezone]);
+  }, [businessId, timezone, currency]);
 
   useFocusEffect(
     useCallback(() => {
