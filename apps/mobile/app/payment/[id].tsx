@@ -228,24 +228,25 @@ export default function PaymentDetailScreen() {
       ) : (
         payment.proofs.map((proof) => {
           const uri = urls[proof.storage_path];
-          if (proof.mime_type === 'application/pdf') {
-            return (
-              <Button
-                key={proof.id}
-                label={`${t('payment.proof.pdf')} · ${t('payment.proof.view')}`}
-                variant="secondary"
-                disabled={!uri}
-                onPress={() => uri && void Linking.openURL(uri)}
-              />
-            );
-          }
           return (
             <View key={proof.id} style={styles.proof}>
-              {uri ? (
+              {proof.mime_type === 'application/pdf' ? (
+                <Button
+                  label={`${t('payment.proof.pdf')} · ${t('payment.proof.view')}`}
+                  variant="secondary"
+                  disabled={!uri}
+                  onPress={() => uri && void Linking.openURL(uri)}
+                />
+              ) : uri ? (
                 <Image source={{ uri }} style={styles.image} accessibilityIgnoresInvertColors />
               ) : (
                 <Text style={styles.muted}>{t('payment.proof.error.load')}</Text>
               )}
+              <Button
+                label={t('ocr.entry.rerun')}
+                variant="ghost"
+                onPress={() => router.push(`/payments/scan?proofId=${proof.id}`)}
+              />
             </View>
           );
         })

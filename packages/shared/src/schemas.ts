@@ -345,11 +345,7 @@ const amountSchema = z.coerce
   .lte(9_999_999_999, 'validation.tooLong');
 
 /** Shared by every override and correction: a reason nobody can skim past. */
-const reasonSchema = z
-  .string()
-  .trim()
-  .min(3, 'validation.tooShort')
-  .max(300, 'validation.tooLong');
+const reasonSchema = z.string().trim().min(3, 'validation.tooShort').max(300, 'validation.tooLong');
 
 export const paymentSchema = z
   .object({
@@ -414,6 +410,104 @@ export const receiptSchema = z.object({
   language: z.enum(LOCALES),
 });
 export type ReceiptInput = z.infer<typeof receiptSchema>;
+
+// --- OCR review (Phase 6B) ---------------------------------------------------
+//
+// What a reviewer confirms after correcting an OCR extraction (or typing
+// everything by hand — `paymentDate`/`method` are required either way, since
+// this is standing in for the fields `paymentSchema` above requires once a
+// payment is actually recorded). No `bookingId` here: the review flow is not
+// scoped to a booking, only to the business the screenshot belongs to.
+
+const ocrDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.dateTime');
+
+/** The eight reviewed fields on their own — what the review step itself validates. */
+export const ocrReviewFieldsSchema = z.object({
+  payerName: optionalString(160),
+  receiverName: optionalString(160),
+  amount: amountSchema,
+  currency: z.enum(CURRENCIES),
+  reference: optionalString(120),
+  paymentDate: ocrDateSchema,
+  paymentTime: z
+    .union([z.literal(''), timeSchema])
+    .optional()
+    .transform((value) => (value ? value : null)),
+  method: z.enum(PAYMENT_METHODS),
+  methodLabel: optionalString(120),
+});
+export type OcrReviewFieldsInput = z.infer<typeof ocrReviewFieldsSchema>;
+
+/** The full confirmed payload: the eight fields plus a chosen or newly typed customer. */
+export const ocrReviewSchema = ocrReviewFieldsSchema
+  .extend({
+    customerId: optionalUuid,
+    /** Filled instead of `customerId` when the reviewer types a new guest. */
+    newCustomerName: optionalString(160),
+    newCustomerPhone: optionalCustomerPhoneSchema,
+  })
+  .refine((value) => !!value.customerId || (!!value.newCustomerName && !!value.newCustomerPhone), {
+    path: ['customerId'],
+    message: 'validation.required',
+  });
+export type OcrReviewInput = z.infer<typeof ocrReviewSchema>;
+
+// --- OCR booking + confirm (Phase 6C) ----------------------------------------
+//
+// The booking step's own fields, validated the same way the plain booking form
+// validates them — same field names, same rules, so `fieldErrors()` renders
+// identically whichever screen produced them.
+
+export const ocrBookingSchema = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('existing'),
+    bookingId: z.uuid('validation.required'),
+  }),
+  z
+    .object({
+      mode: z.literal('new'),
+      propertyId: z.uuid('validation.required'),
+      checkInAt: localDateTimeSchema,
+      checkOutAt: localDateTimeSchema,
+      finalPrice: optionalPriceSchema,
+      priceOverrideReason: optionalString(300),
+      conflictOverride: checkboxSchema,
+      conflictOverrideReason: optionalString(300),
+      note: optionalString(2000),
+    })
+    .refine((value) => value.checkOutAt > value.checkInAt, {
+      path: ['checkOutAt'],
+      message: 'validation.range.end',
+    })
+    .refine((value) => value.finalPrice === null || (value.priceOverrideReason ?? '').length >= 3, {
+      path: ['priceOverrideReason'],
+      message: 'validation.required',
+    })
+    .refine((value) => !value.conflictOverride || (value.conflictOverrideReason ?? '').length >= 3, {
+      path: ['conflictOverrideReason'],
+      message: 'validation.required',
+    }),
+]);
+export type OcrBookingInput = z.infer<typeof ocrBookingSchema>;
+
+/** The payment-side fields the confirm step adds on top of the eight reviewed ones. */
+export const ocrPaymentExtrasSchema = z
+  .object({
+    paymentType: z.enum(RECORDABLE_PAYMENT_TYPES),
+    duplicateOverride: checkboxSchema,
+    overpaymentOverride: checkboxSchema,
+    overrideReason: optionalString(300),
+  })
+  .refine(
+    (value) =>
+      (!value.duplicateOverride && !value.overpaymentOverride) ||
+      (value.overrideReason ?? '').length >= 3,
+    { path: ['overrideReason'], message: 'validation.required' },
+  );
+export type OcrPaymentExtrasInput = z.infer<typeof ocrPaymentExtrasSchema>;
 
 /** Collapses a ZodError into `{ field: i18nKey }` for form rendering. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

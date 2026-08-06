@@ -1,13 +1,19 @@
 import {
   PAYMENT_PAGE_SIZE,
   PAYMENT_PROOF_BUCKET,
+  bookingPaymentStatus,
+  bookingSearchFilter,
   customerSearchFilter,
+  depositRequired,
+  round2,
 } from '@homestay/shared';
 import type {
   BookingPaymentSummary,
   BusinessContext,
+  Currency,
   Payment,
   PaymentFilter,
+  PaymentProof,
   PaymentWithDetails,
   Receipt,
 } from '@homestay/shared';
@@ -34,7 +40,8 @@ const SIGNED_URL_TTL = 60 * 10;
 /** PostgREST nests the property under the booking; the screens want it flat. */
 function flatten(row: unknown): PaymentWithDetails {
   const record = row as PaymentWithDetails & {
-    booking?: (PaymentWithDetails['booking'] & { property?: PaymentWithDetails['property'] }) | null;
+    booking?:
+      (PaymentWithDetails['booking'] & { property?: PaymentWithDetails['property'] }) | null;
   };
   return {
     ...record,
@@ -216,6 +223,123 @@ export async function bookingTotalsFor(
   return out;
 }
 
+// --- OCR-to-booking (Phase 6C) -----------------------------------------------
+
+/** One row of "attach this OCR payment to an existing booking" search results. */
+export interface OcrBookingCandidate {
+  id: string;
+  booking_number: string;
+  property_id: string;
+  property_name: string;
+  customer_name: string;
+  customer_phone: string;
+  check_in_at: string;
+  check_out_at: string;
+  currency: Currency;
+  booking_total: number;
+  deposit_required: number;
+  net_paid: number;
+  balance: number;
+  payment_status: ReturnType<typeof bookingPaymentStatus>;
+}
+
+/**
+ * Bookings a reviewed OCR payment could attach to: not cancelled, and still
+ * owing something. Search matches the booking number or a guest's name/phone,
+ * the same way the plain booking list does; `propertyId` narrows it further.
+ */
+export async function searchOcrBookingCandidates(
+  context: BusinessContext,
+  options: { search?: string; propertyId?: string } = {},
+): Promise<OcrBookingCandidate[]> {
+  const supabase = await createSupabaseServerClient();
+
+  let query = supabase
+    .from('bookings')
+    .select(
+      'id, booking_number, property_id, check_in_at, check_out_at, currency, final_price, ' +
+        'property:properties(name), customer:customers(full_name, phone), ' +
+        'status:booking_statuses(code)',
+    )
+    .eq('business_id', context.business_id)
+    .order('check_in_at', { ascending: false })
+    .limit(30);
+
+  if (options.propertyId) query = query.eq('property_id', options.propertyId);
+
+  const search = options.search?.trim();
+  if (search) {
+    const orFilter = bookingSearchFilter(search, await matchingCustomerIds(context, search));
+    if (!orFilter) return [];
+    query = query.or(orFilter);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const allRows = (data ?? []) as unknown as Array<{
+    id: string;
+    booking_number: string;
+    property_id: string;
+    check_in_at: string;
+    check_out_at: string;
+    currency: Currency;
+    final_price: number;
+    property: { name: string } | null;
+    customer: { full_name: string; phone: string } | null;
+    status: { code: string } | null;
+  }>;
+  const rows = allRows.filter((row) => row.status?.code !== 'cancelled');
+  if (rows.length === 0) return [];
+
+  const totals = await bookingTotalsFor(
+    context,
+    rows.map((row) => row.id),
+  );
+
+  return rows
+    .map((row) => {
+      const totalsRow = totals[row.id];
+      const bookingTotal = round2(Number(row.final_price));
+      const netPaid = totalsRow ? round2(totalsRow.total_paid - totalsRow.refund_total) : 0;
+      return {
+        id: row.id,
+        booking_number: row.booking_number,
+        property_id: row.property_id,
+        property_name: row.property?.name ?? '',
+        customer_name: row.customer?.full_name ?? '',
+        customer_phone: row.customer?.phone ?? '',
+        check_in_at: row.check_in_at,
+        check_out_at: row.check_out_at,
+        currency: row.currency,
+        booking_total: bookingTotal,
+        deposit_required: depositRequired(bookingTotal),
+        net_paid: netPaid,
+        balance: round2(Math.max(bookingTotal - netPaid, 0)),
+        payment_status: bookingPaymentStatus({
+          bookingTotal,
+          totals: { totalPaid: totalsRow?.total_paid ?? 0, refundTotal: totalsRow?.refund_total ?? 0, netPaid },
+        }),
+      } satisfies OcrBookingCandidate;
+    })
+    .filter((row) => row.balance > 0);
+}
+
+/** Guests whose name or phone matches, for the OCR booking search box. */
+async function matchingCustomerIds(context: BusinessContext, search: string): Promise<string[]> {
+  const orFilter = customerSearchFilter(search);
+  if (!orFilter) return [];
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('business_id', context.business_id)
+    .or(orFilter)
+    .limit(50);
+  return (data ?? []).map((row) => (row as { id: string }).id);
+}
+
 export async function listReceipts(
   context: BusinessContext,
   bookingId: string,
@@ -271,6 +395,32 @@ export async function signedProofUrls(paths: string[]): Promise<Record<string, s
   return out;
 }
 
+/** One proof, with just enough of its payment to identify it in a picker list. */
+export interface RecentProof extends PaymentProof {
+  payment: Pick<Payment, 'payment_number' | 'amount' | 'currency' | 'paid_at'> | null;
+}
+
+/**
+ * The business's most recently uploaded payment screenshots, newest first —
+ * for the OCR scan flow's "use an existing proof" source, which re-reads a
+ * screenshot Phase 5 already stored rather than asking for a fresh upload.
+ */
+export async function listRecentProofs(
+  context: BusinessContext,
+  limit = 20,
+): Promise<RecentProof[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('payment_proofs')
+    .select('*, payment:payments(payment_number, amount, currency, paid_at)')
+    .eq('business_id', context.business_id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RecentProof[];
+}
+
 /** Money figures for the dashboard: what is owed, and what came in today. */
 export async function paymentDashboard(context: BusinessContext): Promise<{
   unpaid: number;
@@ -324,7 +474,9 @@ export async function paymentDashboard(context: BusinessContext): Promise<{
   }
 
   let paidToday = 0;
-  for (const row of (today_.data ?? []) as Array<Pick<Payment, 'amount' | 'payment_type' | 'status'>>) {
+  for (const row of (today_.data ?? []) as Array<
+    Pick<Payment, 'amount' | 'payment_type' | 'status'>
+  >) {
     if (row.status === 'voided') continue;
     paidToday += row.payment_type === 'refund' ? -Number(row.amount) : Number(row.amount);
   }

@@ -15,6 +15,7 @@ import type { BookingConflict } from '@homestay/shared';
 import { getBusinessContext, requirePermission } from '@/lib/business';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { failure, success, type ActionState } from '@/lib/actions/state';
+import { searchOcrBookingCandidates, type OcrBookingCandidate } from '@/lib/payments';
 
 /**
  * Server Actions for bookings.
@@ -241,4 +242,65 @@ export async function saveBookingStatusAction(
   revalidatePath('/bookings/statuses');
   revalidatePath('/bookings');
   return success('status.saved');
+}
+
+// --- OCR booking step (Phase 6C) ---------------------------------------------
+
+/**
+ * Bookings the OCR review flow's "existing booking" search can attach a
+ * payment to. Same read as the plain booking list, filtered down to what is
+ * still owed and not cancelled — see `searchOcrBookingCandidates`.
+ */
+export async function searchOcrBookingsAction(input: {
+  search?: string;
+  propertyId?: string;
+}): Promise<OcrBookingCandidate[]> {
+  const context = await getBusinessContext();
+  if (!context) return [];
+  try {
+    requirePermission(context, 'bookings.manage');
+  } catch {
+    return [];
+  }
+  return searchOcrBookingCandidates(context, input);
+}
+
+export interface OcrAvailabilityResult {
+  available: boolean;
+  conflicts: BookingConflict[];
+  errorKey: string | null;
+}
+
+/**
+ * A live look at whether a new booking's dates are free, before the reviewer
+ * commits to them. `record_ocr_payment()` re-checks this itself immediately
+ * before saving — this call is only what the screen shows while typing.
+ */
+export async function checkOcrAvailabilityAction(input: {
+  propertyId: string;
+  checkInAt: string;
+  checkOutAt: string;
+}): Promise<OcrAvailabilityResult> {
+  const context = await getBusinessContext();
+  if (!context) return { available: false, conflicts: [], errorKey: 'error.unauthorized' };
+  try {
+    requirePermission(context, 'bookings.manage');
+  } catch {
+    return { available: false, conflicts: [], errorKey: 'error.unauthorized' };
+  }
+  if (!input.checkInAt || !input.checkOutAt || input.checkOutAt <= input.checkInAt) {
+    return { available: false, conflicts: [], errorKey: null };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('check_booking_availability', {
+    p_business_id: context.business_id,
+    p_property_id: input.propertyId,
+    p_check_in: zonedTimeToUtc(input.checkInAt, context.timezone).toISOString(),
+    p_check_out: zonedTimeToUtc(input.checkOutAt, context.timezone).toISOString(),
+  });
+  if (error) return { available: false, conflicts: [], errorKey: bookingErrorKey(error) };
+
+  const conflicts = (Array.isArray(data) ? data : (data ?? [])) as BookingConflict[];
+  return { available: conflicts.length === 0, conflicts, errorKey: null };
 }

@@ -7,6 +7,7 @@ import {
   customerImportRowSchema,
   customerNoteSchema,
   customerSchema,
+  customerSearchFilter,
   fieldErrors,
 } from '@homestay/shared';
 import type { CustomerImportResult } from '@homestay/shared';
@@ -205,6 +206,118 @@ export async function addCustomerNoteAction(
 
   revalidatePath(`/guests/${parsed.data.customerId}`);
   return success('customer.notes.added');
+}
+
+// --- OCR review inline picker (Phase 6B) ------------------------------------
+
+export interface CustomerOption {
+  id: string;
+  full_name: string;
+  phone: string;
+}
+
+/**
+ * Search-as-you-type for the OCR review flow's customer step. Same filter as
+ * the `/guests` list (`customerSearchFilter`), just returned as data instead
+ * of rendered as a page, and capped small since this backs a picker, not a
+ * table.
+ */
+export async function searchCustomersAction(query: string): Promise<CustomerOption[]> {
+  const context = await getBusinessContext();
+  if (!context) return [];
+  try {
+    requirePermission(context, 'customers.manage');
+  } catch {
+    return [];
+  }
+
+  const search = query.trim();
+  if (!search) return [];
+
+  const supabase = await createSupabaseServerClient();
+  let request = supabase
+    .from('customers')
+    .select('id, full_name, phone')
+    .eq('business_id', context.business_id)
+    .is('archived_at', null)
+    .order('full_name', { ascending: true })
+    .limit(8);
+
+  const filter = customerSearchFilter(search);
+  if (filter) request = request.or(filter);
+
+  const { data, error } = await request;
+  if (error) return [];
+  return (data ?? []) as CustomerOption[];
+}
+
+/**
+ * Same validation and duplicate-phone rule as `createCustomerAction`, minus
+ * the redirect — the OCR review flow creates the guest and stays on the same
+ * page to show the confirmation step next.
+ */
+export async function createCustomerInlineAction(input: {
+  fullName: string;
+  phone: string;
+}): Promise<{ id: string | null; errorKey: string | null; duplicate?: DuplicateHint }> {
+  const context = await getBusinessContext();
+  if (!context) return { id: null, errorKey: 'error.unauthorized' };
+  try {
+    requirePermission(context, 'customers.manage');
+  } catch {
+    return { id: null, errorKey: 'error.unauthorized' };
+  }
+
+  const parsed = customerSchema.safeParse({
+    fullName: input.fullName,
+    phone: input.phone,
+    phoneSecondary: '',
+    email: '',
+    facebookName: '',
+    facebookUrl: '',
+    telegramUsername: '',
+    preferredLanguage: 'en',
+    address: '',
+    note: '',
+  });
+  if (!parsed.success) return { id: null, errorKey: 'error.generic' };
+
+  const existing = await findCustomerByPhone(context, parsed.data.phone);
+  if (existing) {
+    return {
+      id: null,
+      errorKey: 'customer.duplicate.error',
+      duplicate: { id: existing.id, name: existing.full_name, phone: existing.phone },
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({
+      business_id: context.business_id,
+      full_name: parsed.data.fullName,
+      phone: parsed.data.phone,
+      phone_secondary: parsed.data.phoneSecondary,
+      email: parsed.data.email,
+      facebook_name: parsed.data.facebookName,
+      facebook_url: parsed.data.facebookUrl,
+      telegram_username: parsed.data.telegramUsername,
+      preferred_language: parsed.data.preferredLanguage,
+      address: parsed.data.address,
+      note: parsed.data.note,
+      created_by: user?.id ?? null,
+    })
+    .select('id')
+    .maybeSingle();
+  if (error) return { id: null, errorKey: writeError(error).messageKey ?? 'error.generic' };
+
+  revalidatePath('/guests');
+  return { id: (data as { id: string } | null)?.id ?? null, errorKey: null };
 }
 
 /** "Remove" in the UI. Archived, not deleted — there is no DELETE grant. */

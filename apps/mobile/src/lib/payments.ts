@@ -1,23 +1,34 @@
 import { CryptoDigestAlgorithm, digest, randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import {
   PAYMENT_PROOF_BUCKET,
   PROOF_EXTENSIONS,
   PROOF_MAX_BYTES,
+  bookingErrorKey,
+  conflictsFromError,
   duplicatesFromError,
+  fieldErrors,
   isProofMimeType,
+  ocrBookingSchema,
+  ocrPaymentExtrasSchema,
+  ocrReviewFieldsSchema,
   overpaymentFromError,
   paymentErrorKey,
   paymentProofPath,
   zonedTimeToUtc,
 } from '@homestay/shared';
 import type {
+  BookingConflict,
   BookingPaymentSummary,
   Currency,
+  OcrConfirmationPayload,
+  OcrExtraction,
   OverpaymentDetail,
   Payment,
   PaymentDuplicate,
   PaymentMethod,
+  PaymentProof,
   PaymentWithDetails,
   Receipt,
   TranslationKey,
@@ -45,7 +56,8 @@ const SIGNED_URL_TTL = 60 * 10;
 /** PostgREST nests the property under the booking; the screens want it flat. */
 function flatten(row: unknown): PaymentWithDetails {
   const record = row as PaymentWithDetails & {
-    booking?: (PaymentWithDetails['booking'] & { property?: PaymentWithDetails['property'] }) | null;
+    booking?:
+      (PaymentWithDetails['booking'] & { property?: PaymentWithDetails['property'] }) | null;
   };
   return {
     ...record,
@@ -283,10 +295,7 @@ export async function verifyPayment(paymentId: string): Promise<PaymentWriteResu
 }
 
 /** The row stays; it just stops counting, and says who stopped it. */
-export async function voidPayment(
-  paymentId: string,
-  reason: string,
-): Promise<PaymentWriteResult> {
+export async function voidPayment(paymentId: string, reason: string): Promise<PaymentWriteResult> {
   const { error } = await supabase.rpc('void_payment', {
     p_payment_id: paymentId,
     p_reason: reason,
@@ -419,4 +428,267 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(hash))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// --- OCR (Phase 6B) -----------------------------------------------------------
+
+/** One proof, with just enough of its payment to identify it in a picker list. */
+export interface RecentProof extends PaymentProof {
+  payment: Pick<Payment, 'payment_number' | 'amount' | 'currency' | 'paid_at'> | null;
+}
+
+/** The business's most recent payment screenshots, for "use an existing proof". */
+export async function listRecentProofs(businessId: string, limit = 20): Promise<RecentProof[]> {
+  const { data, error } = await supabase
+    .from('payment_proofs')
+    .select('*, payment:payments(payment_number, amount, currency, paid_at)')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RecentProof[];
+}
+
+/** A signed preview URL for one proof by id — arriving via a deep link that only has the id. */
+export async function getProofPreviewUrl(proofId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('payment_proofs')
+    .select('storage_path')
+    .eq('id', proofId)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  const path = (data as { storage_path: string }).storage_path;
+  const urls = await signedProofUrls([path]);
+  return urls[path] ?? null;
+}
+
+export interface OcrResult {
+  errorKey: TranslationKey | null;
+  extraction: OcrExtraction | null;
+  duplicates: PaymentDuplicate[];
+  possibleDuplicate: boolean;
+  proofId: string | null;
+}
+
+/** The edge function's own error keys, mapped onto this app's translation keys. */
+const OCR_ERROR_KEYS: Record<string, TranslationKey> = {
+  auth_required: 'error.unauthorized',
+  forbidden: 'error.unauthorized',
+  invalid_request: 'error.generic',
+  invalid_mime_type: 'ocr.source.error.type',
+  invalid_file_size: 'ocr.source.error.size',
+  proof_not_found: 'ocr.error.notFound',
+  rate_limited: 'ocr.error.rateLimited',
+  provider_error: 'ocr.error.providerFailed',
+};
+
+/** The edge function always answers `{ error: "<key>" }` on a non-2xx response. */
+async function ocrErrorKey(error: unknown): Promise<TranslationKey> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = (await error.context.json()) as { error?: string };
+      if (body.error) return OCR_ERROR_KEYS[body.error] ?? 'error.generic';
+    } catch {
+      // Fall through to the network key below.
+    }
+  }
+  return 'error.network';
+}
+
+/**
+ * Runs Phase 6A's `ocr-payment-proof` function against either an
+ * already-uploaded proof or a fresh screenshot. Read-only, like every other
+ * function above the write section: nothing here records a payment.
+ */
+export async function runOcr(
+  input: { proofId: string } | { businessId: string; imageBase64: string; mimeType: string },
+): Promise<OcrResult> {
+  const body = 'proofId' in input ? { proofId: input.proofId } : input;
+  const { data, error } = await supabase.functions.invoke('ocr-payment-proof', { body });
+  if (error) {
+    return {
+      errorKey: await ocrErrorKey(error),
+      extraction: null,
+      duplicates: [],
+      possibleDuplicate: false,
+      proofId: null,
+    };
+  }
+
+  const result = data as {
+    extraction: OcrExtraction;
+    duplicates: PaymentDuplicate[];
+    possibleDuplicate: boolean;
+  };
+  return {
+    errorKey: null,
+    extraction: result.extraction,
+    duplicates: result.duplicates ?? [],
+    possibleDuplicate: result.possibleDuplicate ?? false,
+    proofId: 'proofId' in input ? input.proofId : null,
+  };
+}
+
+// --- confirm: booking + payment together (Phase 6C) --------------------------
+
+/** Maps whichever of the two inner RPCs raised — booking rule or payment rule — onto one key. */
+function ocrConfirmErrorKey(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+}): TranslationKey {
+  if ((error.message ?? '').includes('proof_not_found')) return 'ocr.error.notFound';
+  const bookingKey = bookingErrorKey(error);
+  if (bookingKey !== 'error.generic') return bookingKey;
+  return paymentErrorKey(error);
+}
+
+export interface ConfirmOcrPaymentExtras {
+  paymentType: string;
+  duplicateOverride: boolean;
+  overpaymentOverride: boolean;
+  overrideReason: string;
+}
+
+export interface ConfirmOcrPaymentResult {
+  errorKey: TranslationKey | null;
+  fieldErrors: Record<string, string>;
+  conflicts: BookingConflict[];
+  duplicates: PaymentDuplicate[];
+  overpayment: OverpaymentDetail | null;
+  bookingId: string | null;
+  paymentId: string | null;
+  bookingNumber: string | null;
+  paymentNumber: string | null;
+}
+
+const CONFIRM_FAILED: ConfirmOcrPaymentResult = {
+  errorKey: 'error.generic',
+  fieldErrors: {},
+  conflicts: [],
+  duplicates: [],
+  overpayment: null,
+  bookingId: null,
+  paymentId: null,
+  bookingNumber: null,
+  paymentNumber: null,
+};
+
+/**
+ * The one write behind "Confirm and save" on the OCR review flow. Everything
+ * that decides whether this is allowed — the permission, the advisory lock,
+ * the conflict scan, the price rule, the duplicate and overpayment checks —
+ * happens inside `record_ocr_payment()`; this function only shapes the
+ * request and the response. Attaching a freshly-picked screenshot is a
+ * second, best-effort step after the RPC succeeds — the same order
+ * `uploadProof` already uses for a plain manual payment.
+ */
+export async function confirmOcrPayment(
+  businessId: string,
+  timezone: string,
+  payload: OcrConfirmationPayload,
+  extra: ConfirmOcrPaymentExtras,
+  proofUpload: PickedProof | null = null,
+): Promise<ConfirmOcrPaymentResult> {
+  const parsedFields = ocrReviewFieldsSchema.safeParse(payload.values);
+  if (!parsedFields.success) {
+    return { ...CONFIRM_FAILED, fieldErrors: fieldErrors(parsedFields.error) };
+  }
+
+  const bookingInput =
+    payload.booking.type === 'existing'
+      ? { mode: 'existing' as const, bookingId: payload.booking.bookingId }
+      : {
+          mode: 'new' as const,
+          propertyId: payload.booking.propertyId,
+          checkInAt: payload.booking.checkInAt,
+          checkOutAt: payload.booking.checkOutAt,
+          finalPrice: payload.booking.finalPrice === null ? '' : String(payload.booking.finalPrice),
+          priceOverrideReason: payload.booking.priceOverrideReason,
+          conflictOverride: payload.booking.conflictOverride,
+          conflictOverrideReason: payload.booking.conflictOverrideReason,
+          note: payload.booking.note,
+        };
+  const parsedBooking = ocrBookingSchema.safeParse(bookingInput);
+  if (!parsedBooking.success) {
+    return { ...CONFIRM_FAILED, fieldErrors: fieldErrors(parsedBooking.error) };
+  }
+
+  const parsedExtras = ocrPaymentExtrasSchema.safeParse(extra);
+  if (!parsedExtras.success) {
+    return { ...CONFIRM_FAILED, fieldErrors: fieldErrors(parsedExtras.error) };
+  }
+
+  const fields = parsedFields.data;
+  const booking = parsedBooking.data;
+  const extras = parsedExtras.data;
+
+  const paidAtLocal = `${fields.paymentDate}T${fields.paymentTime ?? '00:00'}`;
+  const paidAt = zonedTimeToUtc(paidAtLocal, timezone).toISOString();
+
+  const { data, error } = await supabase.rpc('record_ocr_payment', {
+    p_business_id: businessId,
+    p_amount: fields.amount,
+    p_method: fields.method,
+    ...(booking.mode === 'existing'
+      ? { p_booking_id: booking.bookingId }
+      : {
+          p_property_id: booking.propertyId,
+          p_customer_id:
+            payload.customer.type === 'existing' ? payload.customer.customerId : null,
+          p_check_in: zonedTimeToUtc(booking.checkInAt, timezone).toISOString(),
+          p_check_out: zonedTimeToUtc(booking.checkOutAt, timezone).toISOString(),
+          p_final_price: booking.finalPrice,
+          p_price_reason: booking.priceOverrideReason,
+          p_conflict_override: booking.conflictOverride,
+          p_conflict_reason: booking.conflictOverrideReason,
+          p_booking_note: booking.note,
+        }),
+    p_payment_type: extras.paymentType,
+    p_paid_at: paidAt,
+    p_reference: fields.reference,
+    p_payer_name: fields.payerName,
+    p_duplicate_override: extras.duplicateOverride,
+    p_overpayment_override: extras.overpaymentOverride,
+    p_override_reason: extras.overrideReason,
+    p_proof_id: payload.proofId,
+    p_provider: payload.extraction ? 'claude-opus-5' : null,
+    p_extraction: payload.extraction,
+    p_original_values: payload.values,
+    p_corrected_values: fields,
+    p_edited_fields: payload.edited,
+    p_manual_entry: !payload.extraction,
+  });
+
+  if (error) {
+    return {
+      ...CONFIRM_FAILED,
+      errorKey: ocrConfirmErrorKey(error),
+      conflicts: conflictsFromError(error),
+      duplicates: duplicatesFromError(error),
+      overpayment: overpaymentFromError(error),
+    };
+  }
+
+  const result = data as {
+    booking_id: string;
+    booking_number: string;
+    payment_id: string;
+    payment_number: string;
+  };
+
+  if (proofUpload) {
+    await uploadProof(businessId, result.payment_id, proofUpload);
+  }
+
+  return {
+    ...CONFIRM_FAILED,
+    errorKey: null,
+    bookingId: result.booking_id,
+    bookingNumber: result.booking_number,
+    paymentId: result.payment_id,
+    paymentNumber: result.payment_number,
+  };
 }

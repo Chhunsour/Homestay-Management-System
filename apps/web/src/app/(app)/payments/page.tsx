@@ -66,7 +66,12 @@ export default async function PaymentsPage({
 
   return (
     <>
-      <PageHeader title={t('payment.title')} description={t('payment.subtitle')} />
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <PageHeader title={t('payment.title')} description={t('payment.subtitle')} />
+        <Link href="/payments/scan" className={buttonStyles('secondary')}>
+          {t('ocr.entry.scan')}
+        </Link>
+      </div>
 
       {/* A plain GET form: the query string is the state, so a filtered list is
           shareable and the back button works. */}

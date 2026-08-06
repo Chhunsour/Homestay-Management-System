@@ -417,6 +417,28 @@ export interface PaymentDuplicate {
   status: PaymentStatus;
 }
 
+// --- OCR-to-booking audit (Phase 6C) ----------------------------------------
+
+/**
+ * What a reviewer saw, corrected and confirmed, kept next to the payment it
+ * produced. Written once, by `record_ocr_payment()` alone — see
+ * `packages/shared/src/ocrReview.ts` for the review flow this is a record of.
+ */
+export interface PaymentOcrReview {
+  id: string;
+  business_id: string;
+  payment_id: string;
+  proof_id: string | null;
+  manual_entry: boolean;
+  provider: string | null;
+  extraction: unknown | null;
+  original_values: Record<string, string>;
+  corrected_values: Record<string, string>;
+  edited_fields: string[];
+  reviewed_by: string | null;
+  reviewed_at: string;
+}
+
 /** Shape returned by the `current_business_context` RPC. */
 export interface BusinessContext {
   business_id: string;

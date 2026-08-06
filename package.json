@@ -24,7 +24,7 @@
     "db:push": "supabase db push",
     "db:smoke": "node supabase/tests/smoke.mjs",
     "db:test": "supabase db reset && npm run db:test:sql",
-    "db:test:sql": "psql \"$SUPABASE_DB_URL\" -v ON_ERROR_STOP=1 -f supabase/tests/rls_isolation.sql -f supabase/tests/rls_properties.sql -f supabase/tests/rls_customers.sql -f supabase/tests/rls_bookings.sql -f supabase/tests/rls_payments.sql"
+    "db:test:sql": "psql \"$SUPABASE_DB_URL\" -v ON_ERROR_STOP=1 -f supabase/tests/rls_isolation.sql -f supabase/tests/rls_properties.sql -f supabase/tests/rls_customers.sql -f supabase/tests/rls_bookings.sql -f supabase/tests/rls_payments.sql -f supabase/tests/rls_ocr_booking_payment.sql"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

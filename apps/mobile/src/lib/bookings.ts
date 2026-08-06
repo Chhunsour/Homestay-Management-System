@@ -1,8 +1,11 @@
 import {
   BOOKING_PAGE_SIZE,
+  bookingPaymentStatus,
   bookingSearchFilter,
   customerSearchFilter,
+  depositRequired,
   isPendingExpired,
+  round2,
   zonedTimeToUtc,
 } from '@homestay/shared';
 import type {
@@ -11,6 +14,7 @@ import type {
   BookingInput,
   BookingStatus,
   BookingWithDetails,
+  Currency,
   Customer,
   Property,
   PropertyWithDetails,
@@ -380,4 +384,151 @@ export async function resolvePending(
     p_action: action,
   });
   return error ? writeError(error) : OK;
+}
+
+// --- OCR-to-booking (Phase 6C) -----------------------------------------------
+
+/** One row of "attach this OCR payment to an existing booking" search results. */
+export interface OcrBookingCandidate {
+  id: string;
+  booking_number: string;
+  property_id: string;
+  property_name: string;
+  customer_name: string;
+  customer_phone: string;
+  check_in_at: string;
+  check_out_at: string;
+  currency: Currency;
+  booking_total: number;
+  deposit_required: number;
+  net_paid: number;
+  balance: number;
+  payment_status: ReturnType<typeof bookingPaymentStatus>;
+}
+
+/**
+ * Bookings a reviewed OCR payment could attach to: not cancelled, and still
+ * owing something. Same search as the plain booking list — booking number or
+ * a guest's name/phone — narrowed further by `propertyId`.
+ */
+export async function searchOcrBookings(
+  businessId: string,
+  options: { search?: string; propertyId?: string } = {},
+): Promise<OcrBookingCandidate[]> {
+  let query = supabase
+    .from('bookings')
+    .select(
+      'id, booking_number, property_id, check_in_at, check_out_at, currency, final_price, ' +
+        'property:properties(name), customer:customers(full_name, phone), ' +
+        'status:booking_statuses(code)',
+    )
+    .eq('business_id', businessId)
+    .order('check_in_at', { ascending: false })
+    .limit(30);
+
+  if (options.propertyId) query = query.eq('property_id', options.propertyId);
+
+  const search = options.search?.trim();
+  if (search) {
+    const orFilter = bookingSearchFilter(search, await matchingCustomerIds(businessId, search));
+    if (!orFilter) return [];
+    query = query.or(orFilter);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const allRows = (data ?? []) as unknown as Array<{
+    id: string;
+    booking_number: string;
+    property_id: string;
+    check_in_at: string;
+    check_out_at: string;
+    currency: Currency;
+    final_price: number;
+    property: { name: string } | null;
+    customer: { full_name: string; phone: string } | null;
+    status: { code: string } | null;
+  }>;
+  const rows = allRows.filter((row) => row.status?.code !== 'cancelled');
+  if (rows.length === 0) return [];
+
+  const { data: totalsData } = await supabase
+    .from('booking_payment_totals')
+    .select('booking_id, total_paid, refund_total')
+    .eq('business_id', businessId)
+    .in(
+      'booking_id',
+      rows.map((row) => row.id),
+    );
+  const totals = new Map(
+    ((totalsData ?? []) as Array<{ booking_id: string; total_paid: number; refund_total: number }>).map(
+      (row) => [row.booking_id, row],
+    ),
+  );
+
+  return rows
+    .map((row) => {
+      const totalsRow = totals.get(row.id);
+      const bookingTotal = round2(Number(row.final_price));
+      const netPaid = totalsRow
+        ? round2(Number(totalsRow.total_paid) - Number(totalsRow.refund_total))
+        : 0;
+      return {
+        id: row.id,
+        booking_number: row.booking_number,
+        property_id: row.property_id,
+        property_name: row.property?.name ?? '',
+        customer_name: row.customer?.full_name ?? '',
+        customer_phone: row.customer?.phone ?? '',
+        check_in_at: row.check_in_at,
+        check_out_at: row.check_out_at,
+        currency: row.currency,
+        booking_total: bookingTotal,
+        deposit_required: depositRequired(bookingTotal),
+        net_paid: netPaid,
+        balance: round2(Math.max(bookingTotal - netPaid, 0)),
+        payment_status: bookingPaymentStatus({
+          bookingTotal,
+          totals: {
+            totalPaid: totalsRow ? Number(totalsRow.total_paid) : 0,
+            refundTotal: totalsRow ? Number(totalsRow.refund_total) : 0,
+            netPaid,
+          },
+        }),
+      } satisfies OcrBookingCandidate;
+    })
+    .filter((row) => row.balance > 0);
+}
+
+export interface OcrAvailabilityResult {
+  available: boolean;
+  conflicts: BookingConflict[];
+  errorKey: TranslationKey | null;
+}
+
+/**
+ * A live look at whether a new booking's dates are free, before the reviewer
+ * commits to them. `record_ocr_payment()` re-checks this itself immediately
+ * before saving — this call is only what the screen shows while typing.
+ */
+export async function checkOcrAvailability(
+  businessId: string,
+  timezone: string,
+  input: { propertyId: string; checkInAt: string; checkOutAt: string },
+): Promise<OcrAvailabilityResult> {
+  if (!input.checkInAt || !input.checkOutAt || input.checkOutAt <= input.checkInAt) {
+    return { available: false, conflicts: [], errorKey: null };
+  }
+
+  const { data, error } = await supabase.rpc('check_booking_availability', {
+    p_business_id: businessId,
+    p_property_id: input.propertyId,
+    p_check_in: zonedTimeToUtc(input.checkInAt, timezone).toISOString(),
+    p_check_out: zonedTimeToUtc(input.checkOutAt, timezone).toISOString(),
+  });
+  if (error) return { available: false, conflicts: [], errorKey: bookingErrorKey(error) };
+
+  const conflicts = (Array.isArray(data) ? data : (data ?? [])) as BookingConflict[];
+  return { available: conflicts.length === 0, conflicts, errorKey: null };
 }

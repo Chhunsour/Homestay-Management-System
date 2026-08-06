@@ -147,6 +147,12 @@ export default function RecordPaymentScreen() {
 
       {errorKey && !blocked ? <Banner tone="error">{t(errorKey)}</Banner> : null}
 
+      <Button
+        label={t('ocr.entry.scan')}
+        variant="secondary"
+        onPress={() => router.push('/payments/scan')}
+      />
+
       <PaymentSummary summary={summary} />
 
       {duplicates.length > 0 ? (

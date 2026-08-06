@@ -85,3 +85,8 @@ redirect_uri = ""
 
 [analytics]
 enabled = false
+
+# Phase 6A. Platform-level JWT check in front of the function's own
+# auth.getUser() call — belt and suspenders, not a substitute for it.
+[functions.ocr-payment-proof]
+verify_jwt = true

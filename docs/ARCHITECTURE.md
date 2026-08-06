@@ -541,3 +541,17 @@ Phase 5:
 - No partial refunds against a specific proof, no multi-currency settlement, and
   no automatic exchange-rate lookup — the booking's snapshot is copied forward.
 - No scheduled reminder for an unpaid balance.
+
+Phase 6A:
+
+- No review UI. The `ocr-payment-proof` edge function returns extracted
+  fields; nothing renders them yet, and nothing in this phase writes to
+  `payments`, `payment_proofs` or any other table. See
+  `docs/PHASE_6A_OCR.md`.
+- No booking or payment is ever created or modified automatically, including
+  when a possible duplicate is found — the caller only gets a warning.
+- Nothing OCR-related is persisted. A result exists for the lifetime of one
+  request and is gone once the response is sent; only the throttling
+  timestamp in `ocr_requests` survives it.
+- One provider (Claude), swappable through `OcrProvider` but not configurable
+  per business — every request in a deployment uses the same one.

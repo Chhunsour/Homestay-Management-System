@@ -477,6 +477,7 @@ export const km: Record<TranslationKey, string> = {
   'payment.number': 'លេខការទូទាត់',
   'payment.amount': 'ចំនួនទឹកប្រាក់',
   'payment.method': 'មធ្យោបាយទូទាត់',
+  'payment.currency': 'រូបិយប័ណ្ណ',
   'payment.type': 'ប្រភេទការទូទាត់',
   'payment.status': 'ស្ថានភាព',
   'payment.date': 'កាលបរិច្ឆេទទូទាត់',
@@ -555,7 +556,8 @@ export const km: Record<TranslationKey, string> = {
   'payment.correct.title': 'កែតម្រូវការទូទាត់នេះ',
   'payment.correct.body': 'ចំនួនទឹកប្រាក់ដើមត្រូវបានរក្សាទុកក្នុងកំណត់ត្រាសវនកម្ម។',
   'payment.correct.done': 'បានកែតម្រូវការទូទាត់។',
-  'payment.correct.reverify': 'ការកែតម្រូវការទូទាត់ដែលបានផ្ទៀងផ្ទាត់ ធ្វើឱ្យវាត្រូវផ្ទៀងផ្ទាត់ឡើងវិញ។',
+  'payment.correct.reverify':
+    'ការកែតម្រូវការទូទាត់ដែលបានផ្ទៀងផ្ទាត់ ធ្វើឱ្យវាត្រូវផ្ទៀងផ្ទាត់ឡើងវិញ។',
 
   'payment.refund': 'សងប្រាក់វិញ',
   'payment.refund.title': 'សងប្រាក់ការទូទាត់នេះវិញ',
@@ -619,6 +621,111 @@ export const km: Record<TranslationKey, string> = {
   'receipt.thanks': 'សូមអរគុណដែលបានស្នាក់នៅជាមួយយើង។',
   'receipt.snapshot': 'បង្ហាញព័ត៌មានដូចពេលចេញបង្កាន់ដៃ។',
   'receipt.notFound': 'រកមិនឃើញបង្កាន់ដៃទេ។',
+
+  // --- OCR review (Phase 6B) ------------------------------------------------
+  'ocr.entry.scan': 'ស្កេនរូបថតអេក្រង់ការទូទាត់',
+  'ocr.entry.rerun': 'ដំណើរការ OCR លើភស្តុតាងនេះ',
+  'ocr.title': 'ស្កេនរូបថតអេក្រង់ការទូទាត់',
+  'ocr.subtitle': 'អានរូបថតអេក្រង់ដោយស្វ័យប្រវត្តិ រួចពិនិត្យមុននឹងធ្វើអ្វីជាមួយវា។',
+  'ocr.cancel.confirm': 'បោះបង់ការស្កេននេះ? ការកែប្រែរបស់អ្នកនឹងបាត់បង់។',
+
+  'ocr.step.source.title': 'ជ្រើសរើសរូបថតអេក្រង់',
+  'ocr.step.source.subtitle': 'គ្មានអ្វីត្រូវបានរក្សាទុកទេ រហូតដល់អ្នកពិនិត្យ និងបញ្ជាក់វា។',
+  'ocr.source.gallery': 'ជ្រើសរើសពីវិចិត្រសាល',
+  'ocr.source.camera': 'ថតរូបភាព',
+  'ocr.source.upload': 'ផ្ទុករូបថតអេក្រង់ឡើង',
+  'ocr.source.existingProof': 'ប្រើភស្តុតាងការទូទាត់ដែលមានស្រាប់',
+  'ocr.source.existingProof.empty': 'មិនទាន់មានរូបថតអេក្រង់ការទូទាត់នៅឡើយទេ។',
+  'ocr.source.error.type': 'សូមជ្រើសរើសឯកសារ JPG, PNG, WebP ឬ PDF។',
+  'ocr.source.error.size': 'ឯកសារនេះធំពេក។',
+
+  'ocr.processing.title': 'កំពុងអានរូបថតអេក្រង់…',
+  'ocr.processing.body': 'នេះចំណាយពេលប៉ុន្មានវិនាទីប៉ុណ្ណោះ។',
+
+  'ocr.error.rateLimited': 'មានការស្កេនច្រើនពេកឥឡូវនេះ។ សូមរង់ចាំបន្តិច រួចព្យាយាមម្ដងទៀត។',
+  'ocr.error.providerFailed': 'មិនអាចអានរូបថតអេក្រង់នោះបានទេ។',
+  'ocr.error.notFound': 'រកមិនឃើញភស្តុតាងការទូទាត់នោះទេ។',
+
+  'ocr.retry': 'ព្យាយាមម្ដងទៀត',
+  'ocr.manualEntry': 'បញ្ចូលព័ត៌មានដោយដៃ',
+  'ocr.manualEntry.body': 'រំលងការស្កេន ហើយវាយបញ្ចូលព័ត៌មានការទូទាត់ដោយខ្លួនឯង។',
+  'ocr.manualEntry.notice': 'គ្មានរូបថតអេក្រង់ត្រូវបានស្កេនទេ — គ្រប់វាលទាំងអស់ខាងក្រោមនៅទទេ។',
+
+  'ocr.step.review.title': 'ពិនិត្យព័ត៌មានដែលបានស្រង់ចេញ',
+  'ocr.step.review.subtitle': 'កែសម្រួលអ្វីដែលខុស ឬបាត់ មុននឹងបន្ត។',
+  'ocr.field.receiverName': 'ទទួលដោយ',
+  'ocr.field.paymentTime': 'ម៉ោងទូទាត់',
+  'ocr.field.methodLabel': 'ឈ្មោះធនាគារ/កម្មវិធី',
+  'ocr.field.edited': 'បានកែប្រែ',
+  'ocr.confidence.overall': 'កម្រិតជឿជាក់សរុប៖ {percent}%',
+  'ocr.confidence.low': 'ជឿជាក់ទាប — សូមពិនិត្យម្ដងទៀត',
+  'ocr.rawText.toggle': 'បង្ហាញអត្ថបទស្កេនដើម',
+  'ocr.rawText.empty': 'គ្មានអ្វីត្រូវបានអានពីរូបភាពនេះទេ។',
+
+  'ocr.warning.amount_missing': 'មិនអាចអានចំនួនទឹកប្រាក់បានទេ។',
+  'ocr.warning.currency_ambiguous': 'មិនអាចដឹងថារូបិយប័ណ្ណអ្វីនោះទេ។',
+  'ocr.warning.reference_missing': 'រកមិនឃើញលេខយោងប្រតិបត្តិការទេ។',
+  'ocr.warning.date_missing': 'មិនអាចអានកាលបរិច្ឆេទទូទាត់បានទេ។',
+  'ocr.warning.time_missing': 'មិនអាចអានម៉ោងទូទាត់បានទេ។',
+  'ocr.warning.payer_name_missing': 'មិនអាចអានឈ្មោះអ្នកបង់បានទេ។',
+  'ocr.warning.low_overall_confidence': 'រូបថតអេក្រង់នេះពិបាកអាន — សូមពិនិត្យគ្រប់វាល។',
+  'ocr.warning.provider_error': 'រូបថតអេក្រង់នេះមិនអាចអានបានទាល់តែសោះ។',
+
+  'ocr.duplicate.body': 'សូមពិនិត្យដោយប្រុងប្រយ័ត្ន — នេះប្រហែលជាបានកត់ត្រារួចហើយ។',
+
+  'ocr.step.customer.title': 'ផ្គូផ្គងអ្នកបង់ជាមួយភ្ញៀវ',
+  'ocr.step.customer.subtitle': 'ស្វែងរកភ្ញៀវដែលមានស្រាប់របស់អ្នក ឬបន្ថែមភ្ញៀវថ្មី។',
+  'ocr.customer.search.placeholder': 'ស្វែងរកតាមឈ្មោះ ឬលេខទូរស័ព្ទ',
+  'ocr.customer.search.empty': 'គ្មានភ្ញៀវត្រូវនឹងការស្វែងរកនោះទេ។',
+  'ocr.customer.suggested': 'ការផ្គូផ្គងដែលអាចមាន',
+  'ocr.customer.select': 'ជ្រើសរើស',
+  'ocr.customer.selected': 'បានជ្រើសរើស',
+
+  // --- ជំហានកក់ (ដំណាក់កាលទី ៦គ) ---------------------------------------------
+  'ocr.step.booking.title': 'ភ្ជាប់ទៅការកក់',
+  'ocr.step.booking.subtitle': 'ភ្ជាប់ការទូទាត់នេះទៅការកក់ដែលមានស្រាប់ ឬបង្កើតការកក់ថ្មី។',
+  'ocr.booking.mode.existing': 'ការកក់ដែលមានស្រាប់',
+  'ocr.booking.mode.new': 'ការកក់ថ្មី',
+  'ocr.booking.search.placeholder': 'ស្វែងរកតាមលេខកក់ ឈ្មោះភ្ញៀវ ឬលេខទូរស័ព្ទ',
+  'ocr.booking.search.empty': 'គ្មានការកក់ដែលមិនទាន់សង ឬសងមិនទាន់គ្រប់ត្រូវនឹងការស្វែងរកនោះទេ។',
+  'ocr.booking.filter.property': 'ត្រងតាមអចលនទ្រព្យ',
+  'ocr.booking.filter.allProperties': 'អចលនទ្រព្យទាំងអស់',
+  'ocr.booking.select': 'ជ្រើសរើស',
+  'ocr.booking.selected': 'បានជ្រើសរើស',
+  'ocr.booking.summary.total': 'ចំនួនសរុបនៃការកក់',
+  'ocr.booking.summary.deposit': 'ប្រាក់កក់ត្រូវការ (50%)',
+  'ocr.booking.summary.paid': 'បានបង់រួច',
+  'ocr.booking.summary.newTotal': 'ចំនួនសរុបថ្មីដែលបានបង់',
+  'ocr.booking.summary.remaining': 'សមតុល្យនៅសល់',
+  'ocr.booking.summary.statusAfter': 'ស្ថានភាពទូទាត់បន្ទាប់ពីបញ្ជាក់',
+  'ocr.booking.availability.checking': 'កំពុងពិនិត្យភាពទំនេរ…',
+
+  'ocr.deposit.incomplete':
+    'នេះតិចជាងប្រាក់កក់ 50%។ ការកក់នឹងនៅតែរង់ចាំរហូតដល់ប្រាក់កក់គ្រប់។',
+  'ocr.deposit.exact': 'នេះត្រូវនឹងប្រាក់កក់ 50% គ្រប់។ ការកក់នឹងត្រូវបានបញ្ជាក់។',
+  'ocr.deposit.advance':
+    'នេះច្រើនជាងប្រាក់កក់ ប៉ុន្តែតិចជាងចំនួនសរុប។ ការកក់នឹងត្រូវបានបញ្ជាក់។',
+  'ocr.deposit.full': 'នេះទូទាត់ការកក់ពេញលេញ។',
+
+  'ocr.currency.mismatch':
+    'រូបិយប័ណ្ណលើរូបថតអេក្រង់ ({from}) មិនត្រូវនឹងរូបិយប័ណ្ណនៃការកក់ ({to}) ទេ។ {to} នឹងត្រូវបានកត់ត្រា។',
+
+  'ocr.proof.duplicate.warning': 'រូបថតអេក្រង់នេះបានភ្ជាប់ជាមួយការទូទាត់ {number} រួចហើយ។',
+
+  'ocr.step.confirmation.title': 'បញ្ជាក់ និងរក្សាទុក',
+  'ocr.step.confirmation.subtitle': 'ពិនិត្យអ្វីៗខាងក្រោម។ គ្មានអ្វីត្រូវបានរក្សាទុករហូតដល់អ្នកបញ្ជាក់។',
+  'ocr.confirmation.notice':
+    'ការបញ្ជាក់នឹងបង្កើតការទូទាត់ (និងការកក់ ប្រសិនបើថ្មី) ក្នុងជំហានតែមួយ ហើយមិនអាចត្រឡប់វិញពីទីនេះបានទេ។',
+  'ocr.confirmation.customer.new': 'ភ្ញៀវថ្មី (នឹងត្រូវបានបង្កើត)៖ {name}',
+  'ocr.confirmation.customer.existing': 'ភ្ញៀវដែលបានផ្គូផ្គង៖ {name}',
+  'ocr.confirmation.booking.existing': 'ការកក់ដែលមានស្រាប់ {number}',
+  'ocr.confirmation.booking.new': 'ការកក់ថ្មីនៅ {property}',
+  'ocr.confirmation.startOver': 'ស្កេនរូបថតអេក្រង់ផ្សេងទៀត',
+  'ocr.confirmation.done': 'បញ្ជាក់ និងរក្សាទុក',
+  'ocr.confirmation.saving': 'កំពុងរក្សាទុក…',
+  'ocr.confirmation.success': 'បានកត់ត្រាការទូទាត់។',
+  'ocr.confirmation.viewBooking': 'មើលការកក់',
+  'ocr.confirmation.manualEntry.badge': 'បញ្ចូលដោយដៃ',
 
   'dashboard.unpaid': 'ការកក់មិនទាន់បង់ប្រាក់',
   'dashboard.deposits': 'រង់ចាំប្រាក់កក់',

@@ -472,6 +472,7 @@ export const en = {
   'payment.number': 'Payment number',
   'payment.amount': 'Amount',
   'payment.method': 'Method',
+  'payment.currency': 'Currency',
   'payment.type': 'Payment type',
   'payment.status': 'Status',
   'payment.date': 'Payment date',
@@ -614,6 +615,112 @@ export const en = {
   'receipt.thanks': 'Thank you for staying with us.',
   'receipt.snapshot': 'Shows the details as they were when the receipt was issued.',
   'receipt.notFound': 'Receipt not found.',
+
+  // --- OCR review (Phase 6B) ------------------------------------------------
+  'ocr.entry.scan': 'Scan a payment screenshot',
+  'ocr.entry.rerun': 'Run OCR on this proof',
+  'ocr.title': 'Scan a payment screenshot',
+  'ocr.subtitle': 'Read a screenshot automatically, then check it before doing anything with it.',
+  'ocr.cancel.confirm': 'Discard this scan? Your corrections will be lost.',
+
+  'ocr.step.source.title': 'Choose a screenshot',
+  'ocr.step.source.subtitle': 'Nothing is saved until you review and confirm it.',
+  'ocr.source.gallery': 'Choose from gallery',
+  'ocr.source.camera': 'Take a photo',
+  'ocr.source.upload': 'Upload a screenshot',
+  'ocr.source.existingProof': 'Use an existing payment proof',
+  'ocr.source.existingProof.empty': 'No payment screenshots on file yet.',
+  'ocr.source.error.type': 'Choose a JPG, PNG, WebP or PDF file.',
+  'ocr.source.error.size': 'That file is too large.',
+
+  'ocr.processing.title': 'Reading the screenshot…',
+  'ocr.processing.body': 'This takes a few seconds.',
+
+  'ocr.error.rateLimited': 'Too many scans right now. Wait a moment and try again.',
+  'ocr.error.providerFailed': 'Could not read that screenshot.',
+  'ocr.error.notFound': 'That payment proof could not be found.',
+
+  'ocr.retry': 'Try again',
+  'ocr.manualEntry': 'Enter details manually',
+  'ocr.manualEntry.body': 'Skip scanning and type the payment details in yourself.',
+  'ocr.manualEntry.notice': 'No screenshot was scanned — every field below is blank.',
+
+  'ocr.step.review.title': 'Review the extracted details',
+  'ocr.step.review.subtitle': 'Correct anything that is wrong or missing before continuing.',
+  'ocr.field.receiverName': 'Received by',
+  'ocr.field.paymentTime': 'Payment time',
+  'ocr.field.methodLabel': 'Bank/app name',
+  'ocr.field.edited': 'Edited',
+  'ocr.confidence.overall': 'Overall confidence: {percent}%',
+  'ocr.confidence.low': 'Low confidence — double-check this',
+  'ocr.rawText.toggle': 'Show raw scanned text',
+  'ocr.rawText.empty': 'Nothing was read from this image.',
+
+  'ocr.warning.amount_missing': "Couldn't read an amount.",
+  'ocr.warning.currency_ambiguous': "Couldn't tell which currency this is.",
+  'ocr.warning.reference_missing': "Couldn't find a transaction ID.",
+  'ocr.warning.date_missing': "Couldn't read a payment date.",
+  'ocr.warning.time_missing': "Couldn't read a payment time.",
+  'ocr.warning.payer_name_missing': "Couldn't read who paid.",
+  'ocr.warning.low_overall_confidence': 'This screenshot was hard to read — check every field.',
+  'ocr.warning.provider_error': "The screenshot couldn't be read at all.",
+
+  'ocr.duplicate.body': 'Review carefully — this might already be recorded.',
+
+  'ocr.step.customer.title': 'Match the payer to a guest',
+  'ocr.step.customer.subtitle': 'Search your existing guests, or add a new one.',
+  'ocr.customer.search.placeholder': 'Search by name or phone',
+  'ocr.customer.search.empty': 'No guests match that search.',
+  'ocr.customer.suggested': 'Possible match',
+  'ocr.customer.select': 'Select',
+  'ocr.customer.selected': 'Selected',
+
+  // --- OCR booking step (Phase 6C) --------------------------------------------
+  'ocr.step.booking.title': 'Attach to a booking',
+  'ocr.step.booking.subtitle': 'Link this payment to an existing booking, or create a new one.',
+  'ocr.booking.mode.existing': 'Existing booking',
+  'ocr.booking.mode.new': 'New booking',
+  'ocr.booking.search.placeholder': 'Search by booking number, guest name or phone',
+  'ocr.booking.search.empty': 'No unpaid or partially paid bookings match that search.',
+  'ocr.booking.filter.property': 'Filter by property',
+  'ocr.booking.filter.allProperties': 'All properties',
+  'ocr.booking.select': 'Select',
+  'ocr.booking.selected': 'Selected',
+  'ocr.booking.summary.total': 'Booking total',
+  'ocr.booking.summary.deposit': 'Deposit required (50%)',
+  'ocr.booking.summary.paid': 'Already paid',
+  'ocr.booking.summary.newTotal': 'New total paid',
+  'ocr.booking.summary.remaining': 'Remaining balance',
+  'ocr.booking.summary.statusAfter': 'Payment status after confirmation',
+  'ocr.booking.availability.checking': 'Checking availability…',
+
+  'ocr.deposit.incomplete':
+    'This is less than the 50% deposit. The booking will stay pending until the deposit is met.',
+  'ocr.deposit.exact': 'This meets the 50% deposit exactly. The booking will be confirmed.',
+  'ocr.deposit.advance':
+    'This is more than the deposit but less than the full total. The booking will be confirmed.',
+  'ocr.deposit.full': 'This pays the booking in full.',
+
+  'ocr.currency.mismatch':
+    'The screenshot currency ({from}) does not match the booking currency ({to}). {to} will be recorded.',
+
+  'ocr.proof.duplicate.warning': 'This screenshot is already attached to payment {number}.',
+
+  'ocr.step.confirmation.title': 'Confirm and save',
+  'ocr.step.confirmation.subtitle':
+    'Check everything below. Nothing is saved until you confirm.',
+  'ocr.confirmation.notice':
+    'Confirming creates the payment (and the booking, if new) in one step and cannot be undone from here.',
+  'ocr.confirmation.customer.new': 'New guest (will be created): {name}',
+  'ocr.confirmation.customer.existing': 'Matched guest: {name}',
+  'ocr.confirmation.booking.existing': 'Existing booking {number}',
+  'ocr.confirmation.booking.new': 'New booking at {property}',
+  'ocr.confirmation.startOver': 'Scan another screenshot',
+  'ocr.confirmation.done': 'Confirm and save',
+  'ocr.confirmation.saving': 'Saving…',
+  'ocr.confirmation.success': 'Payment recorded.',
+  'ocr.confirmation.viewBooking': 'View booking',
+  'ocr.confirmation.manualEntry.badge': 'Manually entered',
 
   'dashboard.unpaid': 'Unpaid bookings',
   'dashboard.deposits': 'Awaiting deposit',

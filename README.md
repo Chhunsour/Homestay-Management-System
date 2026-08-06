@@ -147,3 +147,4 @@ itself; the payment RPCs do not accept a business id at all. See
 | [PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md)           | Phase 4 test plan and recorded results               |
 | [PHASE_5_PAYMENTS.md](docs/PHASE_5_PAYMENTS.md)         | Payments, deposits, balances, refunds, proofs, receipts |
 | [PHASE_5_TESTING.md](docs/PHASE_5_TESTING.md)           | Phase 5 test plan and recorded results               |
+| [PHASE_6A_OCR.md](docs/PHASE_6A_OCR.md)                 | Payment screenshot OCR: provider, extraction schema, security |
