@@ -1,36 +1,59 @@
 @import 'tailwindcss';
 
 @theme {
-  /* Inter for Latin, Noto Sans Khmer for ខ្មែរ, with the OS Khmer faces as a
-     fallback so the app still renders correctly offline. */
+  /* A warmer editorial face for headings, with complete Khmer fallbacks. */
   --font-sans:
-    'Inter', 'Noto Sans Khmer', 'Khmer OS Battambang', 'Khmer Sangkam MN', ui-sans-serif, system-ui,
-    -apple-system, 'Segoe UI', sans-serif;
+    'DM Sans', 'Noto Sans Khmer', 'Khmer OS Battambang', 'Khmer Sangkam MN', ui-sans-serif,
+    system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display:
+    'Newsreader', 'Noto Sans Khmer', 'Khmer OS Muol Light', 'Khmer Sangkam MN', ui-serif, Georgia,
+    serif;
 
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-200: #99f6e4;
-  --color-brand-400: #2dd4bf;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-brand-900: #134e4a;
+  --color-brand-50: #f0f5f1;
+  --color-brand-100: #e2ebe4;
+  --color-brand-200: #c4d7c9;
+  --color-brand-400: #71977b;
+  --color-brand-600: #3f6b50;
+  --color-brand-700: #2e543e;
+  --color-brand-800: #234130;
+  --color-brand-900: #182d22;
 
-  --color-surface: #ffffff;
-  --color-canvas: #f6f7f9;
-  --color-line: #e2e5ea;
+  --color-accent-50: #fff7ed;
+  --color-accent-100: #ffead5;
+  --color-accent-200: #fbd1aa;
+  --color-accent-500: #c8783a;
+  --color-accent-600: #a95f2c;
 
-  /* "Mostly rectangular with slight rounding". */
-  --radius-panel: 0.375rem;
+  /* Re-map Tailwind's neutral utilities so old screens inherit the new system. */
+  --color-slate-50: #f7f8f6;
+  --color-slate-100: #edf0ec;
+  --color-slate-200: #dde3dc;
+  --color-slate-300: #c3ccc4;
+  --color-slate-400: #8b998e;
+  --color-slate-500: #68766b;
+  --color-slate-600: #4e5d52;
+  --color-slate-700: #39473d;
+  --color-slate-800: #26332b;
+  --color-slate-900: #18231d;
+
+  --color-surface: #fcfdfb;
+  --color-canvas: #f2f5f0;
+  --color-line: #dce4dc;
+
+  --radius-sm: 0.625rem;
+  --radius-panel: 1.125rem;
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   body {
-    background-color: var(--color-canvas);
+    background:
+      radial-gradient(circle at 85% 4%, rgb(200 216 202 / 38%), transparent 28rem),
+      var(--color-canvas);
     color: var(--color-slate-800);
     font-family: var(--font-sans);
     /* Khmer glyphs sit taller than Latin; extra leading keeps both readable. */
@@ -43,17 +66,98 @@
     word-break: break-word;
   }
 
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  button:not(:disabled),
+  a[href] {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--color-brand-200);
+    color: var(--color-brand-900);
+  }
+
   /* Never remove focus rings — keyboard navigation depends on them. */
   :focus-visible {
-    outline: 2px solid var(--color-brand-700);
-    outline-offset: 2px;
+    outline: 3px solid rgb(63 107 80 / 38%);
+    outline-offset: 3px;
   }
 }
 
 @layer components {
   .panel {
     background-color: var(--color-surface);
-    border: 1px solid var(--color-line);
     border-radius: var(--radius-panel);
+    box-shadow:
+      0 1px 1px rgb(24 45 34 / 4%),
+      0 12px 30px rgb(24 45 34 / 7%);
+  }
+
+  .panel table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .panel tbody tr {
+    transition: background-color 180ms ease;
+  }
+
+  .panel tbody tr:hover {
+    background-color: rgb(240 245 241 / 72%);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .app-shell-main {
+    width: 100%;
+    max-width: 92rem;
+    margin-inline: auto;
+  }
+
+  .app-shell-main input:not([type='hidden']):not([type='checkbox']):not([type='radio']),
+  .app-shell-main select,
+  .app-shell-main textarea {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+  }
+
+  .auth-atmosphere {
+    background:
+      linear-gradient(145deg, rgb(24 45 34 / 98%), rgb(46 84 62 / 94%)), var(--color-brand-900);
+  }
+
+  .auth-atmosphere::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.34;
+    background-image:
+      linear-gradient(30deg, transparent 48%, rgb(255 255 255 / 8%) 49%, transparent 51%),
+      linear-gradient(150deg, transparent 48%, rgb(255 255 255 / 8%) 49%, transparent 51%);
+    background-size: 48px 84px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

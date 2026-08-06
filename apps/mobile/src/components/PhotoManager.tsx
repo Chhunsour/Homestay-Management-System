@@ -140,10 +140,10 @@ export function PhotoManager({
 
 const styles = StyleSheet.create({
   wrapper: { gap: 12 },
-  hint: { fontSize: 12, color: '#64748b' },
+  hint: { fontSize: 12, color: colors.muted },
   empty: { fontSize: 14, color: colors.muted },
-  item: { borderRadius: 6, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  image: { width: '100%', height: 180, backgroundColor: '#e2e8f0' },
+  item: { borderRadius: 16, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  image: { width: '100%', height: 190, backgroundColor: colors.brandSoft },
   itemBar: {
     flexDirection: 'row',
     alignItems: 'center',

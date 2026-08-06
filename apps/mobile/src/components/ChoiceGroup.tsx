@@ -47,19 +47,19 @@ export function ChoiceGroup<T extends string>({
 
 const styles = StyleSheet.create({
   wrapper: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '500', color: colors.text },
+  label: { fontSize: 14, fontWeight: '600', color: colors.text },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   option: {
-    minHeight: 40,
+    minHeight: 46,
     justifyContent: 'center',
     paddingHorizontal: 12,
-    borderRadius: 6,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: '#bcc8be',
     backgroundColor: colors.surface,
   },
   optionSelected: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
   optionText: { fontSize: 14, color: colors.muted },
-  optionTextSelected: { color: colors.brandDark, fontWeight: '500' },
+  optionTextSelected: { color: colors.brandDark, fontWeight: '600' },
   error: { fontSize: 12, fontWeight: '500', color: colors.danger },
 });

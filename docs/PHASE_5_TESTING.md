@@ -40,14 +40,15 @@ npx expo config --type public   # from apps/mobile
 | RPC failures map onto translation keys                            | every SQLSTATE the RPCs raise reaches `paymentErrorKey()`                             |
 | a refusal carries its evidence in DETAIL                          | `duplicatesFromError()` and `overpaymentFromError()` parse it back                    |
 
-`roles.test.ts` grew the Phase 5 rows: it parses the migration and fails if
-`role_permissions` and `ROLE_PERMISSIONS` disagree about `payments.verify`,
-`payments.correct`, `payments.refund`, `payments.void`, `payments.override` or
+`roles.test.ts` picked up the Phase 5 rows without being edited — it parses
+**every** migration's `role_permissions` seed and fails if SQL and
+`ROLE_PERMISSIONS` disagree, which now includes `payments.verify`,
+`payments.correct`, `payments.refund`, `payments.void`, `payments.override` and
 `receipts.manage`.
 
-`i18n.test.ts` covers the 132 new payment/receipt/proof keys automatically: `en`
-and `km` must have identical key sets, no Khmer value may equal its English
-original, and every Khmer value must contain Khmer codepoints.
+`i18n/i18n.test.ts` covers the 132 new payment, receipt and proof keys the same
+way: `en` and `km` must have identical key sets, no Khmer value may equal its
+English original, and every Khmer value must contain Khmer codepoints.
 
 ## 2. SQL tenant isolation suite
 

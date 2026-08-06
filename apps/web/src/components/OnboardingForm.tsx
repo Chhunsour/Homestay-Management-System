@@ -30,9 +30,10 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
   };
 
   return (
-    <div className="panel p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+    <div className="panel p-6 sm:p-8">
+      <div className="mb-7">
+        <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-accent-500" />
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900">
           {t('onboarding.title')}
         </h1>
         <p className="mt-1 text-sm text-slate-600">{t('onboarding.subtitle')}</p>

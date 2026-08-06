@@ -6,7 +6,7 @@
 homestay-saas/
 ├─ apps/
 │  ├─ mobile/                 Expo SDK 57 + expo-router
-│  │  ├─ app/                 file-based routes: (tabs)/, property/[id]/, customer/[id]/, booking/[id]/
+│  │  ├─ app/                 file-based routes: (tabs)/, property/[id]/, customer/[id]/, booking/[id]/, payment/[id], receipt/[id]
 │  │  └─ src/{lib,components}
 │  └─ web/                    Next.js 16 App Router
 │     └─ src/{app,components,lib}
@@ -14,14 +14,17 @@ homestay-saas/
 │        ├─ app/(app)/guests/        list, new, [id], [id]/edit, import, export
 │        ├─ app/(app)/bookings/      list, new, [id], [id]/edit, statuses
 │        ├─ app/(app)/calendar/      month and week views
+│        ├─ app/(app)/payments/      list, [id]
+│        ├─ app/(app)/receipts/[id]  printable receipt
 │        ├─ components/properties/   PropertyForm, PricingForm, PhotoManager, BlockManager, PropertyStatusActions
 │        ├─ components/customers/    CustomerForm, CustomerNotes, CustomerStatusActions, ImportWizard
 │        ├─ components/bookings/     BookingForm, BookingActions, StatusChip, StatusManager
-│        └─ lib/{properties.ts, customers.ts, bookings.ts, actions/{properties,customers,bookings}.ts}
+│        ├─ components/payments/     RecordPaymentForm, PaymentActions, PaymentSummary, BookingPayments, ProofManager, PrintButton
+│        └─ lib/{properties.ts, customers.ts, bookings.ts, payments.ts, actions/{properties,customers,bookings,payments}.ts}
 ├─ packages/shared/           types, zod schemas, roles, availability, i18n, formatting
 ├─ supabase/
 │  ├─ migrations/             schema → functions → policies → RPCs, per phase
-│  └─ tests/                  rls_isolation.sql, rls_properties.sql, rls_customers.sql, rls_bookings.sql, auth_stub.sql, smoke.mjs
+│  └─ tests/                  rls_isolation.sql, rls_properties.sql, rls_customers.sql, rls_bookings.sql, rls_payments.sql, auth_stub.sql, smoke.mjs
 └─ docs/
 ```
 
@@ -46,6 +49,7 @@ using Node's native type stripping — the test suite needs zero dependencies.
 | `availability.ts`| `checkAvailability`, `rangesOverlap`, `rateForNight`, `isWeekend`, `zonedTimeToUtc`, `utcToZonedInput` |
 | `phone.ts`       | `normalizePhone`, `isNormalizedPhone`, `isValidPhone`, `CAMBODIA_CALLING_CODE` |
 | `customers.ts`   | `customerSearchFilter`, `isSamePhone`, `duplicateRowIndexes`, `mapImportHeaders`, `parseCsv`, `parseCustomerCsv`, `toCsv` |
+| `payments.ts`    | `round2`, `depositRequired`, `countsTowardBalance`, `sumPayments`, `bookingPaymentStatus`, `summarizeBookingPayments`, `isOverpayment`, `reachesDeposit`, `findDuplicates`, `isBlockingDuplicate`, `canOverride/Correct/Refund/Void/VerifyPayment`, `paymentErrorKey`, `duplicatesFromError`, `overpaymentFromError` |
 | `bookings.ts`    | `priceBooking`, `bookingDays`, `finalPrice`, `localDate`, `isWeekendDate`, `blocksDatesStatus`, `toOccupancy`, `statusLabel`, `findStatusByCode`, `isPendingExpired`, `pendingMinutesLeft`, `addMonths`, `monthGrid`, `weekGrid`, `coversDate`, `bookingSearchFilter`, `bookingErrorKey`, `conflictsFromError`, `isOverridable` |
 | `types.ts`       | `BusinessContext`, `Profile`, `Business`, `Property`, `Customer`, `Booking`, `BookingStatus`, `BookingWithDetails`, … mirroring the SQL types |
 
@@ -65,7 +69,12 @@ auth.users ──1:1── profiles
                       │                             ├──< customers ──< customer_notes
                       │                             ├──< booking_statuses
                       │                             ├──< booking_counters
+                      │                             ├──< payment_counters, receipt_counters
                       │                             └──< bookings ──< booking_status_history
+                      │                                      │
+                      │                                      ├──< payments ──< payment_proofs
+                      │                                      │        └──< payment_adjustments
+                      │                                      └──< receipts
                       └──1:1── user_preferences ── last_business_id ─→ businesses
 ```
 
@@ -113,6 +122,24 @@ auth.users ──1:1── profiles
 - `booking_counters` — `(business_id, year, last_number)`. No grants, no
   policies; only `next_booking_number()` touches it, and its per-business key is
   what keeps `BK-2026-000001` from leaking another tenant's volume.
+  `payment_counters` and `receipt_counters` are the same table three times over.
+- `payments` — one amount received (or refunded) against one booking. Carries its
+  own `payment_number`, method, `payment_type`, `status`, the currency and
+  `exchange_rate` **copied from the booking** so a later rate change cannot
+  rewrite what was taken, the transaction reference, payer name, paid-at, the
+  duplicate- and overpayment-override flags with their reasons, and who recorded
+  and verified it. Nothing here is ever deleted: `status = 'voided'` is how a
+  payment stops counting.
+- `payment_proofs` — one row per screenshot or PDF in the private bucket, with
+  its `storage_path`, mime, size and a `checksum` that is what "you already
+  uploaded this file" matches on.
+- `payment_adjustments` — the audit record for every void, correction and refund:
+  the action, the reason, `amount_before`/`amount_after`, the actor, and for a
+  refund a link to the new payment row it created. Insert-only, by definer
+  functions; no client holds any grant.
+- `receipts` — an issued receipt with its `receipt_number`, its language, and a
+  `snapshot` jsonb holding every value it prints. The snapshot is why renaming a
+  property next year does not change a receipt issued this year.
 
 All PKs are `uuid default gen_random_uuid()`. Every table has
 `created_at`/`updated_at` and shares one `set_updated_at()` trigger function,
@@ -120,8 +147,9 @@ attached by a `do` block loop rather than nine copy-pasted `create trigger`
 statements.
 
 Enums (`business_role`, `member_status`, `app_locale`, `app_currency`,
-`block_reason`, `block_status`, `pricing_rule_type`, `booking_status_code`) are PostgreSQL enums, so an
-invalid value cannot be stored even by a superuser.
+`block_reason`, `block_status`, `pricing_rule_type`, `booking_status_code`,
+`payment_method`, `payment_type`, `payment_status`, `payment_adjustment_action`)
+are PostgreSQL enums, so an invalid value cannot be stored even by a superuser.
 
 **Children carry their own `business_id`.** `properties` declares
 `unique (id, business_id)` and each child declares
@@ -138,6 +166,15 @@ Bookings apply the same trick sideways rather than downwards: `property_id`,
 status even if a client asks it to. All three are `on delete restrict`, and
 there is no DELETE grant on any booking table — cancellation is the end state.
 
+Payments repeat both patterns at once. `payments` references
+`(booking_id, business_id)` and `(customer_id, business_id)` compositely — the
+requirement that a payment's booking, customer and business all agree is a
+foreign key, not a check in application code — and `payment_proofs`,
+`payment_adjustments` and `receipts` each reference `(payment_id, business_id)`
+or `(booking_id, business_id)` the same way. Everything is `on delete restrict`,
+and `authenticated` holds **no UPDATE and no DELETE on any of the four tables**,
+which is the schema-level form of "do not permanently delete financial records".
+
 ## Authorization
 
 Three layers, in order of authority:
@@ -151,7 +188,9 @@ RPC.
 `business_settings`, `user_preferences`, `role_permissions`, `properties`,
 `property_photos`, `property_pricing`, `property_blocks`, `customers`,
 `customer_notes`, `booking_statuses`, `bookings`, `booking_status_history`,
-`booking_counters`, and on `storage.objects` for the photo bucket. Every policy
+`booking_counters`, `payments`, `payment_proofs`, `payment_adjustments`,
+`receipts`, `payment_counters`, `receipt_counters`, and on `storage.objects` for
+both private buckets. Every policy
 resolves the caller from `auth.uid()`; a client-supplied `business_id` is only
 ever a filter, never a grant. Reads are scoped by `is_business_member()`, writes
 by `has_business_permission()`. Archived properties are filtered out by the
@@ -174,6 +213,13 @@ there is no code path to a booking change that has not been through the advisory
 lock and the conflict scan. `booking_counters` has RLS on and no policy, which
 denies everything.
 
+Payments go furthest of all: `authenticated` gets `select` on `payments`,
+`payment_adjustments` and `receipts`, `select` **and** `insert` on
+`payment_proofs` (uploading evidence is the one thing a client does directly),
+and nothing else. Every amount, status and reason is written by a definer RPC.
+`payment_counters` and `receipt_counters` are RLS-on-no-policy like their booking
+sibling.
+
 **3. SECURITY DEFINER functions**, all with `set search_path = public, pg_temp`:
 
 | Function                            | Purpose                                        |
@@ -184,6 +230,8 @@ denies everything.
 | `can_read_member_profile(user)`     | lets owners/managers read co-members' profiles  |
 | `current_business_context()`        | resolves the business to show, with the role    |
 | `can_access_property_object(k, p)`  | parses the tenant out of a storage object key, then defers to `has_business_permission` |
+| `can_access_payment_object(k, p)`   | the same, for the `payment-proofs` prefix     |
+| `booking_payment_summary(booking)`  | one row of totals for a booking, membership-gated inside the function |
 
 The permission matrix itself is a table (`role_permissions`), seeded in the
 migration. Policies join it, so adding a permission is a data change, not a
@@ -209,6 +257,13 @@ policy rewrite. Phase 2 added six rows' worth of permissions:
 | `bookings.cancel`           |  ✓    |   ✓     |       |
 | `bookings.restore`          |  ✓    |         |       |
 | `bookings.pending.resolve`  |  ✓    |   ✓     |       |
+| `payments.manage`           |  ✓    |   ✓     |  ✓    |
+| `payments.verify`           |  ✓    |   ✓     |       |
+| `payments.correct`          |  ✓    |   ✓     |       |
+| `payments.refund`           |  ✓    |   ✓     |       |
+| `payments.override`         |  ✓    |   ✓     |       |
+| `payments.void`             |  ✓    |         |       |
+| `receipts.manage`           |  ✓    |   ✓     |       |
 
 Archiving is the one property action a manager cannot perform — it is the
 closest thing to a delete, so it stays with the owner. Restoring a cancelled
@@ -233,9 +288,19 @@ from whoever was given them after the cancellation.
 | `save_booking(...)`          | create **and** edit in one body; takes `pg_advisory_xact_lock` on the property, re-scans conflicts, re-prices from the rate card, and enforces the conflict, price, cancel and restore permissions before writing |
 | `set_booking_status(...)`    | needs `bookings.manage`; re-runs the conflict scan when moving back into a status that holds dates |
 | `resolve_pending_booking(...)` | needs `bookings.pending.resolve`; `keep` stamps the resolution, `release` cancels — nothing expires a booking automatically |
+| `payment_duplicates(...)`    | read-only; returns the reference, same-amount-within-30-minutes and file-checksum matches the form warns on |
+| `record_payment(...)`        | needs `payments.manage`; copies business, customer, currency and rate from the booking, blocks a duplicate reference and an overpayment unless the caller has `payments.override` **and** gives a reason, then calls `confirm_on_deposit` |
+| `verify_payment(...)`        | needs `payments.verify`                                       |
+| `void_payment(...)`          | needs `payments.void` (owner only) and a reason; sets the status, writes the adjustment, keeps the row |
+| `correct_payment(...)`       | needs `payments.correct` and a reason; re-checks the overpayment ceiling, clears the verification, records both amounts |
+| `refund_payment(...)`        | needs `payments.refund` and a reason; creates a `refund` payment row rather than editing the original |
+| `issue_receipt(...)`         | needs `receipts.manage`; takes the number from `receipt_counters` and freezes every printed value into `snapshot` |
 
 Every one of them derives the actor from `auth.uid()` and re-reads the target
 row inside the function. No RPC accepts a role or an actor id from the client.
+The payment RPCs never accept a `business_id` at all — they take a booking or a
+payment id and read the tenant off the row, so there is nothing for a client to
+forge. `confirm_on_deposit` is internal and revoked from `authenticated`.
 
 **Storage.** Photos live in the private `property-photos` bucket under
 `businesses/{businessId}/properties/{propertyId}/{fileName}`. All four object
@@ -243,6 +308,12 @@ policies run the key through `can_access_property_object()`, which takes the
 second path segment as the tenant — a malformed or traversing key fails the
 regex and is refused. Reads go through short-lived signed URLs; neither app ever
 uses a service key. `docs/SUPABASE_SETUP.md` §3.7 has the bucket settings.
+
+Payment proofs live in a second private bucket, `payment-proofs`, under
+`businesses/{businessId}/payments/{paymentId}/{fileName}`, with the same
+prefix-parsing helper and the same signed-URL reads. It differs in two ways:
+`application/pdf` is allowed, because bank transfer receipts arrive as PDFs, and
+there is no update or delete policy at all. §3.10 has the settings.
 
 ## The permission matrix exists twice, on purpose
 
@@ -278,6 +349,30 @@ the rule. `booking_calculated_price()` is the same arrangement for pricing: the
 apps preview with `priceBooking()`, the database recomputes and stores its own
 number, and only an authorized `p_final_price` with a reason changes the total.
 
+## Money
+
+There is no stored balance column anywhere. Every total is derived from the
+payment rows each time it is asked for, by the same arrangement as availability:
+`packages/shared/src/payments.ts` for the preview, SQL for the answer.
+
+`booking_payment_totals` is a `security_invoker` view that sums non-voided
+payments per booking, and `booking_payment_summary(booking_id)` is the definer
+function the apps and the RPCs both call — it re-checks membership itself, so it
+is safe to expose and impossible to aim at another tenant.
+`summarizeBookingPayments()` is the TypeScript mirror, kept honest by
+`payments.test.ts`.
+
+Voided rows are what stop counting; unverified ones still do. Verification
+records that someone confirmed the money arrived — it is not a gate on the
+arithmetic, because a booking whose balance silently ignored an unverified
+deposit would show the guest as unpaid on arrival.
+
+A refund is its own row (`payment_type = 'refund'`, positive amount), never an
+edit of the payment it reverses, so `total_paid` keeps the history and `net_paid`
+carries the truth. `deposit_required` is 50% of the booking total, rounded once
+at the end. Currency and `exchange_rate` are copied onto each payment from the
+booking, so a rate change tomorrow cannot rewrite what was taken today.
+
 ## Web app
 
 Next.js 16 App Router, React 19, Tailwind v4.
@@ -288,9 +383,8 @@ Next.js 16 App Router, React 19, Tailwind v4.
   route guard; the layouts below are the second one.
 - `(auth)/` — sign in, sign up, forgot password, reset password, verify.
 - `(app)/` — layout calls `getBusinessContext()`; a user with no business is
-  sent to `/onboarding`. Sidebar has all eight sections; Dashboard, Properties,
-  Guests, Bookings, Calendar and Settings are real, the remaining two render the
-  shared `Placeholder`.
+  sent to `/onboarding`. Sidebar has all eight sections; only Reports still
+  renders the shared `Placeholder`.
 - `(app)/properties/` — a card grid with server-side search (name and address)
   and an active/inactive filter, both held in `searchParams` so the URL is
   shareable and the back button works; `new`, `[id]` and `[id]/edit`. The detail
@@ -308,6 +402,15 @@ Next.js 16 App Router, React 19, Tailwind v4.
   the conflict record and the expired-hold review.
 - `(app)/calendar/` — month and week views over the same data, with a property
   filter; `view`, `date` and `propertyId` live in `searchParams`.
+- `(app)/payments/` — a paginated list with search over payment number,
+  reference, guest name, guest phone and booking number plus status, method,
+  property and date-range filters, all in `searchParams`; `[id]` is the detail
+  page with the audit trail, the proof gallery and the role-gated actions.
+  Recording a payment happens on the booking, where the amount owed is, not on a
+  separate screen that would have to ask which booking.
+- `(app)/receipts/[id]` — a print-styled page rendered entirely from the stored
+  snapshot, in the language the receipt was issued in. `PrintButton` calls
+  `window.print()`; a `@media print` block drops the chrome.
 - All mutations are Server Actions returning a common `ActionState`
   (`status`, `messageKey`, `fieldErrors`) that the client forms render through
   `useActionState`. Error text is always a translation key, never a string.
@@ -338,8 +441,13 @@ Expo SDK 57, expo-router, React Native 0.86.
   leaving the screen.
 - `(tabs)/calendar.tsx` — a month grid with a per-day count; tapping a day lists
   that day's stays. `(tabs)/index.tsx` is the dashboard: today, check-ins,
-  checkouts, pending and expired holds, plus available properties. No money — that
-  is Phase 5.
+  checkouts, pending and expired holds, available properties, and — since Phase 5
+  — unpaid bookings, pending deposits, balance due and paid today.
+- `app/booking/[id]/payment.tsx`, `app/payment/[id].tsx`, `app/receipt/[id].tsx`
+  — the booking screen carries the summary, the history and the receipts
+  (`BookingPayments`, `PaymentSummary`); recording is one screen reached from the
+  booking, and a receipt shares as text through the system share sheet. Proofs
+  are picked with `expo-image-picker` and uploaded exactly like property photos.
 - `app/customer/[id]/`, `app/customer/new` — the same shape for customers,
   sharing `CustomerForm` and `CustomerNotes`. Search is debounced 300 ms with a
   plain `setTimeout` effect, and pagination grows `range(0, page * PAGE_SIZE)`
@@ -417,3 +525,19 @@ Phase 4:
 - No booking deletion — cancel and restore; the row and its status history stay.
 - No native date picker on mobile and no drag-to-move on the web calendar; moving
   a booking is an edit, which is the path that re-checks conflicts.
+
+Phase 5:
+
+- No OCR. A proof is stored, shown and checksummed; nothing reads the amount out
+  of it. That is Phase 6, and `payment_proofs` already has the columns for it.
+- No PDF or image export of a receipt. Print works on the web, and mobile shares
+  text; a rendering pipeline is a dependency Phase 5 did not need.
+- No PDF proof upload from mobile — `expo-image-picker` offers images only. The
+  bucket and the web dashboard both accept PDFs.
+- No payment gateway. ABA and KHQR are recorded as methods, not integrated; the
+  guest pays through Messenger and someone types the amount in.
+- No revenue reports, no subscriptions, no platform billing. `/reports` is still
+  a placeholder.
+- No partial refunds against a specific proof, no multi-currency settlement, and
+  no automatic exchange-rate lookup — the booking's snapshot is copied forward.
+- No scheduled reminder for an unpaid balance.

@@ -1,4 +1,4 @@
-# Homestay Manager — Phases 1–4
+# Homestay Manager — Phases 1–5
 
 Internal property-management SaaS for homestay, villa and resort operators.
 Owners, managers and staff use it; guests never do.
@@ -13,9 +13,13 @@ export. Customers never sign in and internal notes are never exposed publicly.
 Phase 4 adds **bookings**: an availability calendar, weekday/weekend pricing
 with authorized manual override, customizable statuses, transaction-safe
 conflict detection with an audited override, and 30-minute pending holds that
-lapse into a review item rather than silently releasing the dates. Payments,
-OCR, receipts, reports, subscriptions and guest-facing pages remain out of
-scope.
+lapse into a review item rather than silently releasing the dates. Phase 5 adds
+**money**: payments in ABA, KHQR, bank transfer or cash, a 50% deposit rule that
+confirms a pending booking the moment it is met, balances derived from the
+payment rows rather than stored, payment screenshots in a private bucket,
+duplicate-reference blocking with an audited override, voids, corrections and
+refunds that never delete a row, and bilingual printable receipts numbered per
+business. OCR, reports, subscriptions and guest-facing pages remain out of scope.
 
 ## What is in the box
 
@@ -23,7 +27,7 @@ scope.
 | ---------------------- | -------------------------------------------------------------- |
 | `apps/web`             | Next.js 16 App Router dashboard (React 19, Tailwind v4)         |
 | `apps/mobile`          | Expo SDK 57 app (expo-router, React Native 0.86)                |
-| `packages/shared`      | Types, zod schemas, roles/permissions, availability, pricing, phone, CSV, i18n |
+| `packages/shared`      | Types, zod schemas, roles/permissions, availability, pricing, payments, phone, CSV, i18n |
 | `supabase/migrations`  | PostgreSQL schema, RLS policies, storage policies and RPCs      |
 | `supabase/tests`       | SQL proof that tenants cannot see each other, plus an HTTP smoke test |
 | `docs`                 | Architecture, Supabase setup, per-phase feature and test plans   |
@@ -80,8 +84,8 @@ npm run lint         # eslint (flat config, repo-wide)
 npm run typecheck    # tsc --noEmit in every workspace
 npm test             # shared package unit tests (node --test)
 npm run build        # production build of apps/web
-npm run db:test      # reset the database, then run all four RLS suites
-npm run db:test:sql  # all four RLS suites without resetting
+npm run db:test      # reset the database, then run all five RLS suites
+npm run db:test:sql  # all five RLS suites without resetting
 npm run db:smoke     # HTTP smoke test: auth, PostgREST and Storage on a live stack
 ```
 
@@ -93,8 +97,9 @@ and PostgREST's schema cache, so run it before shipping a schema change.
 Manual checks and the alternative way to run the SQL suites against plain
 PostgreSQL are in [docs/PHASE_1_TESTING.md](docs/PHASE_1_TESTING.md),
 [docs/PHASE_2_TESTING.md](docs/PHASE_2_TESTING.md),
-[docs/PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md) and
-[docs/PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md).
+[docs/PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md),
+[docs/PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md) and
+[docs/PHASE_5_TESTING.md](docs/PHASE_5_TESTING.md).
 
 ## Security model in one paragraph
 
@@ -117,8 +122,14 @@ conflicts so two simultaneous requests cannot both win, and the only columns a
 client may `UPDATE` directly are the two note fields. Conflict and price
 overrides are permissions checked inside that RPC, each demanding a reason and
 recording who approved it. Booking numbers come from a counter keyed by
-business, unreadable to any client, so they leak nothing across tenants. No
-client ever sends a role or a business id it chose itself. See
+business, unreadable to any client, so they leak nothing across tenants. Payments
+are the strictest of all: `authenticated` holds **no UPDATE and no DELETE** on
+`payments`, `payment_proofs`, `payment_adjustments` or `receipts`, so voiding,
+correcting and refunding exist only as definer RPCs that demand a reason and
+write an audit row — a financial record is never destroyed, only superseded.
+Every balance is recomputed from those rows rather than stored, so there is no
+number a client could edit. No client ever sends a role or a business id it chose
+itself; the payment RPCs do not accept a business id at all. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Documentation
@@ -134,3 +145,5 @@ client ever sends a role or a business id it chose itself. See
 | [PHASE_3_TESTING.md](docs/PHASE_3_TESTING.md)           | Phase 3 test plan and recorded results               |
 | [PHASE_4_BOOKINGS.md](docs/PHASE_4_BOOKINGS.md)         | Bookings, calendar, pricing, conflicts, pending holds |
 | [PHASE_4_TESTING.md](docs/PHASE_4_TESTING.md)           | Phase 4 test plan and recorded results               |
+| [PHASE_5_PAYMENTS.md](docs/PHASE_5_PAYMENTS.md)         | Payments, deposits, balances, refunds, proofs, receipts |
+| [PHASE_5_TESTING.md](docs/PHASE_5_TESTING.md)           | Phase 5 test plan and recorded results               |

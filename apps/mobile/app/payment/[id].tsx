@@ -15,17 +15,7 @@ import {
   paymentTypeKey,
 } from '@homestay/shared';
 import type { Locale, PaymentWithDetails, TranslationKey } from '@homestay/shared';
-import {
-  Banner,
-  Button,
-  Card,
-  Empty,
-  Field,
-  Row,
-  Screen,
-  Title,
-  colors,
-} from '@/components/ui';
+import { Banner, Button, Card, Empty, Field, Row, Screen, Title, colors } from '@/components/ui';
 import { ChoiceGroup } from '@/components/ChoiceGroup';
 import { Loading } from '@/components/Loading';
 import { useSession } from '@/lib/session';
@@ -116,7 +106,10 @@ export default function PaymentDetailScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return setErrorKey('photo.permissionDenied');
 
-    const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
     const asset = picked.canceled ? null : picked.assets[0];
     if (!asset) return;
 
@@ -179,8 +172,7 @@ export default function PaymentDetailScreen() {
       {
         text: t('payment.void'),
         style: 'destructive',
-        onPress: () =>
-          void run(() => voidPayment(paymentId, reason.trim()), 'payment.void.done'),
+        onPress: () => void run(() => voidPayment(paymentId, reason.trim()), 'payment.void.done'),
       },
     ]);
   }
@@ -194,7 +186,9 @@ export default function PaymentDetailScreen() {
 
       {errorKey ? <Banner tone="error">{t(errorKey)}</Banner> : null}
       {savedKey ? <Banner tone="success">{t(savedKey)}</Banner> : null}
-      {payment.status === 'voided' ? <Banner tone="error">{t('payment.error.voided')}</Banner> : null}
+      {payment.status === 'voided' ? (
+        <Banner tone="error">{t('payment.error.voided')}</Banner>
+      ) : null}
       {payment.duplicate_override || payment.overpayment_override ? (
         <Banner tone="info">{payment.override_reason ?? t('payment.override.reason')}</Banner>
       ) : null}
@@ -205,10 +199,7 @@ export default function PaymentDetailScreen() {
         <Row label={t('payment.method')} value={t(paymentMethodKey(payment.method))} />
         <Row label={t('payment.type')} value={t(paymentTypeKey(payment.payment_type))} />
         <Row label={t('payment.status')} value={t(paymentStatusKey(payment.status))} />
-        <Row
-          label={t('payment.date')}
-          value={formatDateTime(locale, payment.paid_at, timezone)}
-        />
+        <Row label={t('payment.date')} value={formatDateTime(locale, payment.paid_at, timezone)} />
         <Row label={t('payment.reference')} value={payment.reference || t('common.notSet')} />
         <Row label={t('payment.payer')} value={payment.payer_name || t('common.notSet')} />
         <Row label={t('payment.customer')} value={payment.customer?.full_name ?? ''} />
@@ -422,7 +413,12 @@ export default function PaymentDetailScreen() {
             onChangeText={setReason}
             maxLength={300}
           />
-          <Button label={t('payment.void')} variant="secondary" loading={busy} onPress={confirmVoid} />
+          <Button
+            label={t('payment.void')}
+            variant="secondary"
+            loading={busy}
+            onPress={confirmVoid}
+          />
         </View>
       ) : null}
 
@@ -440,11 +436,7 @@ export default function PaymentDetailScreen() {
             loading={busy}
             onPress={() =>
               void run(async () => {
-                const result = await issueReceipt(
-                  payment.booking_id,
-                  payment.id,
-                  receiptLanguage,
-                );
+                const result = await issueReceipt(payment.booking_id, payment.id, receiptLanguage);
                 if (!result.errorKey && result.id) router.push(`/receipt/${result.id}`);
                 return result;
               }, 'receipt.issued')
@@ -468,21 +460,21 @@ export default function PaymentDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: { fontSize: 16, fontWeight: '600', color: colors.text, paddingTop: 8 },
+  section: { fontSize: 18, fontWeight: '700', color: colors.text, paddingTop: 8 },
   muted: { fontSize: 13, lineHeight: 20, color: colors.muted },
   audit: { fontSize: 12, color: colors.muted, textAlign: 'center' },
 
-  proof: { borderRadius: 6, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  image: { width: '100%', height: 260, backgroundColor: '#e2e8f0' },
+  proof: { borderRadius: 16, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  image: { width: '100%', height: 260, backgroundColor: colors.brandSoft },
 
   panel: {
     backgroundColor: colors.surface,
     borderColor: colors.line,
     borderWidth: 1,
-    borderRadius: 6,
-    padding: 12,
+    borderRadius: 16,
+    padding: 16,
     gap: 10,
   },
-  panelDanger: { backgroundColor: colors.dangerSoft, borderColor: '#fecaca' },
-  panelTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  panelDanger: { backgroundColor: colors.dangerSoft, borderColor: '#e8b9b5' },
+  panelTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
 });

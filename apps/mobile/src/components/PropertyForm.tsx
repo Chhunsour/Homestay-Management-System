@@ -184,7 +184,7 @@ export function PropertyForm({ property }: { property?: PropertyWithDetails }) {
           accessibilityLabel={t('property.field.active')}
           value={isActive}
           onValueChange={setIsActive}
-          trackColor={{ true: colors.brand, false: '#cbd5e1' }}
+          trackColor={{ true: colors.brand, false: '#bcc8be' }}
         />
       </View>
 
@@ -229,8 +229,8 @@ export function PropertyForm({ property }: { property?: PropertyWithDetails }) {
 const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   switchText: { flex: 1, gap: 2 },
-  switchLabel: { fontSize: 14, fontWeight: '500', color: colors.text },
-  switchHint: { fontSize: 12, lineHeight: 18, color: '#64748b' },
-  section: { fontSize: 16, fontWeight: '600', color: colors.text, paddingTop: 8 },
+  switchLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  switchHint: { fontSize: 12, lineHeight: 18, color: colors.muted },
+  section: { fontSize: 18, fontWeight: '700', color: colors.text, paddingTop: 8 },
   sectionHint: { fontSize: 13, lineHeight: 20, color: colors.muted, marginTop: -12 },
 });

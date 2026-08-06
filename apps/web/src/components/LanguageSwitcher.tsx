@@ -26,10 +26,10 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
               aria-pressed={active}
               lang={option}
               className={cx(
-                'rounded-sm px-2.5 py-1 text-sm font-medium transition-colors',
+                'inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
                 active
                   ? 'bg-brand-700 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
               )}
             >
               {t(LABEL_KEYS[option])}

@@ -19,7 +19,8 @@ export default async function VerifyPage({
   const t = createTranslator(await getLocale());
   return (
     <div className="panel space-y-4 p-6">
-      <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+      <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-accent-500" />
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900">
         {t('auth.verify.title')}
       </h1>
       <Alert tone="info">{t('auth.verify.subtitleEmail', { target: email })}</Alert>

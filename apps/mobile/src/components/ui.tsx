@@ -12,22 +12,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const colors = {
-  brand: '#0f766e',
-  brandDark: '#115e59',
-  brandSoft: '#f0fdfa',
-  text: '#0f172a',
-  muted: '#475569',
-  line: '#e2e8f0',
-  surface: '#ffffff',
-  canvas: '#f8fafc',
-  danger: '#b91c1c',
-  dangerSoft: '#fef2f2',
-  success: '#047857',
-  successSoft: '#ecfdf5',
+  brand: '#2e543e',
+  brandDark: '#182d22',
+  brandSoft: '#e2ebe4',
+  accent: '#c8783a',
+  accentSoft: '#fff1e4',
+  text: '#18231d',
+  muted: '#526057',
+  subtle: '#7d8b80',
+  line: '#dce4dc',
+  surface: '#fcfdfb',
+  canvas: '#f2f5f0',
+  danger: '#a83d3d',
+  dangerSoft: '#fcedeb',
+  success: '#397150',
+  successSoft: '#e5f1e8',
 } as const;
 
-/** Slight rounding everywhere — matches the web design tokens. */
-const RADIUS = 6;
+const RADIUS = 18;
 
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
   return (
@@ -36,6 +38,7 @@ export function Screen({ children, scroll = true }: { children: ReactNode; scrol
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {children}
         </ScrollView>
@@ -49,6 +52,7 @@ export function Screen({ children, scroll = true }: { children: ReactNode; scrol
 export function Title({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <View style={styles.titleBlock}>
+      <View accessibilityElementsHidden style={styles.titleMarker} />
       <Text accessibilityRole="header" style={styles.title}>
         {title}
       </Text>
@@ -108,6 +112,7 @@ export function Banner({
 export function Empty({ title, body }: { title: string; body: string }) {
   return (
     <View style={styles.empty}>
+      <View accessibilityElementsHidden style={styles.emptyMarker} />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
     </View>
@@ -127,7 +132,7 @@ export function Field({
         // Screen readers read the label with the field; there is no <label for>.
         accessibilityLabel={label}
         accessibilityHint={error ?? hint}
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.subtle}
         {...props}
         style={[styles.input, error ? styles.inputError : null]}
       />
@@ -177,33 +182,58 @@ export function Button({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas },
-  scrollContent: { padding: 20, gap: 16 },
+  scrollContent: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+    gap: 20,
+  },
 
-  titleBlock: { gap: 4 },
-  title: { fontSize: 22, fontWeight: '600', color: colors.text },
-  subtitle: { fontSize: 14, lineHeight: 22, color: colors.muted },
+  titleBlock: { gap: 6, paddingBottom: 4 },
+  titleMarker: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.accent,
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '700',
+    letterSpacing: -0.7,
+    color: colors.text,
+  },
+  subtitle: { maxWidth: 560, fontSize: 15, lineHeight: 23, color: colors.muted },
 
   card: {
     backgroundColor: colors.surface,
     borderRadius: RADIUS,
-    borderWidth: 1,
-    borderColor: colors.line,
     overflow: 'hidden',
+    shadowColor: colors.brandDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 2,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    minHeight: 54,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   },
-  rowLabel: { fontSize: 14, color: colors.muted, flexShrink: 1 },
+  rowLabel: { fontSize: 14, lineHeight: 20, color: colors.muted, flexShrink: 1 },
   rowValue: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.text,
     flexShrink: 1,
     textAlign: 'right',
@@ -211,20 +241,18 @@ const styles = StyleSheet.create({
 
   badge: {
     backgroundColor: colors.brandSoft,
-    borderColor: '#99f6e4',
-    borderWidth: 1,
-    borderRadius: RADIUS,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  badgeText: { fontSize: 12, fontWeight: '500', color: colors.brandDark },
+  badgeText: { fontSize: 12, fontWeight: '600', color: colors.brandDark },
 
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
 
-  banner: { borderRadius: RADIUS, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  banner_error: { backgroundColor: colors.dangerSoft, borderColor: '#fecaca' },
-  banner_success: { backgroundColor: colors.successSoft, borderColor: '#a7f3d0' },
-  banner_info: { backgroundColor: colors.canvas, borderColor: colors.line },
+  banner: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 13 },
+  banner_error: { backgroundColor: colors.dangerSoft, borderColor: '#e8b9b5' },
+  banner_success: { backgroundColor: colors.successSoft, borderColor: '#b9d6c0' },
+  banner_info: { backgroundColor: colors.brandSoft, borderColor: '#c4d7c9' },
   bannerText: { fontSize: 14, lineHeight: 21 },
   bannerText_error: { color: colors.danger },
   bannerText_success: { color: colors.success },
@@ -233,25 +261,31 @@ const styles = StyleSheet.create({
   empty: {
     backgroundColor: colors.surface,
     borderRadius: RADIUS,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 24,
-    gap: 6,
+    padding: 30,
+    gap: 8,
     alignItems: 'center',
   },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: colors.text, textAlign: 'center' },
+  emptyMarker: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    marginBottom: 6,
+  },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center' },
   emptyBody: { fontSize: 14, lineHeight: 22, color: colors.muted, textAlign: 'center' },
 
-  field: { gap: 6 },
-  fieldLabel: { fontSize: 14, fontWeight: '500', color: colors.text },
+  field: { gap: 7 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   input: {
+    minHeight: 52,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: RADIUS,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderColor: '#bcc8be',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
     color: colors.text,
   },
   inputError: { borderColor: '#f87171' },
@@ -259,16 +293,16 @@ const styles = StyleSheet.create({
   error: { fontSize: 12, fontWeight: '500', color: colors.danger },
 
   button: {
-    minHeight: 44,
-    borderRadius: RADIUS,
+    minHeight: 50,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
   button_primary: { backgroundColor: colors.brand },
-  button_secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: '#cbd5e1' },
+  button_secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: '#bcc8be' },
   button_ghost: { backgroundColor: 'transparent' },
-  buttonPressed: { opacity: 0.85 },
+  buttonPressed: { opacity: 0.76 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { fontSize: 15, fontWeight: '600' },
   buttonText_primary: { color: '#ffffff' },

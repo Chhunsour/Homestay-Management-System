@@ -178,6 +178,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  section: { fontSize: 16, fontWeight: '600', color: colors.text, paddingTop: 8 },
+  section: { fontSize: 18, fontWeight: '700', color: colors.text, paddingTop: 8 },
   sectionHint: { fontSize: 13, lineHeight: 20, color: colors.muted, marginTop: -12 },
 });

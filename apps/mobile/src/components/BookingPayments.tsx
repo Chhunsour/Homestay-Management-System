@@ -133,19 +133,17 @@ export function BookingPayments({ bookingId }: { bookingId: string }) {
 }
 
 const styles = StyleSheet.create({
-  section: { fontSize: 16, fontWeight: '600', color: colors.text, paddingTop: 8 },
+  section: { fontSize: 18, fontWeight: '700', color: colors.text, paddingTop: 8 },
   muted: { fontSize: 13, color: colors.muted },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 14,
-    gap: 4,
+    borderRadius: 16,
+    padding: 16,
+    gap: 5,
   },
-  cardPressed: { opacity: 0.85 },
+  cardPressed: { opacity: 0.72 },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  cardTitle: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: colors.text },
+  cardTitle: { flexShrink: 1, fontSize: 16, fontWeight: '700', color: colors.text },
   amount: { fontSize: 15, fontWeight: '600', color: colors.text },
   voided: { textDecorationLine: 'line-through', color: colors.muted },
   refund: { color: colors.danger },

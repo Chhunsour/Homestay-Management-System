@@ -38,19 +38,25 @@ export default async function DashboardPage() {
     tone?: 'alert';
   }) {
     return (
-      <Panel>
-        <div className="flex items-center justify-between gap-2 px-5 py-3.5">
+      <Panel className="h-full overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-5 py-4">
           <h2
-            className={`text-sm font-semibold ${tone === 'alert' ? 'text-rose-900' : 'text-slate-900'}`}
+            className={`font-display text-lg font-semibold ${tone === 'alert' ? 'text-rose-900' : 'text-slate-900'}`}
           >
-            {t(titleKey)}
+            {t(titleKey)}{' '}
+            <span className="ml-1 font-sans text-xs font-semibold text-slate-500">
+              {bookings.length}
+            </span>
           </h2>
-          <Link href="/bookings" className="text-sm text-brand-800 hover:underline">
+          <Link
+            href="/bookings"
+            className="rounded-md px-2 py-1 text-sm font-semibold text-brand-800 transition hover:bg-brand-50"
+          >
             {t('dashboard.viewAll')}
           </Link>
         </div>
         {bookings.length === 0 ? (
-          <p className="border-t border-slate-100 px-5 py-6 text-sm text-slate-600">
+          <p className="border-t border-slate-100 px-5 py-8 text-sm text-slate-600">
             {t('dashboard.none')}
           </p>
         ) : (
@@ -58,16 +64,16 @@ export default async function DashboardPage() {
             {bookings.slice(0, 5).map((booking) => (
               <li
                 key={booking.id}
-                className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3 last:border-b-0"
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5 transition hover:bg-brand-50/60 last:border-b-0"
               >
                 <div className="min-w-0">
                   <Link
                     href={`/bookings/${booking.id}`}
-                    className="text-sm font-medium text-brand-800 hover:underline"
+                    className="text-sm font-semibold text-slate-900 hover:text-brand-700"
                   >
                     {booking.property?.name ?? booking.booking_number}
                   </Link>
-                  <p className="truncate text-sm text-slate-600">
+                  <p className="mt-0.5 truncate text-sm text-slate-500">
                     {booking.customer?.full_name ?? ''} ·{' '}
                     {formatDateTime(locale, booking[field], timezone)}
                   </p>
@@ -83,11 +89,44 @@ export default async function DashboardPage() {
     );
   }
 
-  function Money({ labelKey, value }: { labelKey: TranslationKey; value: string }) {
+  function Money({
+    labelKey,
+    value,
+    size = 'small',
+  }: {
+    labelKey: TranslationKey;
+    value: string;
+    size?: 'small' | 'medium' | 'large';
+  }) {
     return (
-      <Link href="/payments" className="panel block px-5 py-4 hover:bg-slate-50">
-        <p className="text-xs text-slate-600">{t(labelKey)}</p>
-        <p className="mt-1 text-xl font-semibold text-slate-900">{value}</p>
+      <Link
+        href="/payments"
+        className={`panel group block min-h-32 overflow-hidden px-5 py-5 transition duration-200 hover:-translate-y-0.5 ${
+          size === 'large'
+            ? 'col-span-2 bg-brand-900 text-white xl:col-span-5'
+            : size === 'medium'
+              ? 'col-span-2 xl:col-span-3'
+              : 'xl:col-span-2'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p
+            className={`text-sm font-medium ${size === 'large' ? 'text-brand-100' : 'text-slate-500'}`}
+          >
+            {t(labelKey)}
+          </p>
+          <span
+            aria-hidden="true"
+            className={`size-2 rounded-full ${size === 'large' ? 'bg-accent-500' : 'bg-brand-200'}`}
+          />
+        </div>
+        <p
+          className={`mt-6 font-display font-semibold tabular-nums tracking-tight ${
+            size === 'large' ? 'text-4xl text-white' : 'text-3xl text-slate-900'
+          }`}
+        >
+          {value}
+        </p>
       </Link>
     );
   }
@@ -98,17 +137,19 @@ export default async function DashboardPage() {
 
       <div className="space-y-6">
         {/* The four money questions an owner opens the app to answer. */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Money labelKey="dashboard.unpaid" value={String(money.unpaid)} />
-          <Money labelKey="dashboard.deposits" value={String(money.awaitingDeposit)} />
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-12">
           <Money
             labelKey="dashboard.balanceDue"
             value={formatMoney(locale, money.balanceDue, context.default_currency)}
+            size="large"
           />
           <Money
             labelKey="dashboard.paidToday"
             value={formatMoney(locale, money.paidToday, context.default_currency)}
+            size="medium"
           />
+          <Money labelKey="dashboard.unpaid" value={String(money.unpaid)} />
+          <Money labelKey="dashboard.deposits" value={String(money.awaitingDeposit)} />
         </div>
 
         {board.expired.length > 0 ? (
@@ -120,52 +161,68 @@ export default async function DashboardPage() {
           />
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <BookingList titleKey="dashboard.today" bookings={board.today} field="check_in_at" />
-          <BookingList
-            titleKey="dashboard.checkIns"
-            bookings={board.checkIns}
-            field="check_in_at"
-          />
-          <BookingList
-            titleKey="dashboard.checkOuts"
-            bookings={board.checkOuts}
-            field="check_out_at"
-          />
-          <BookingList titleKey="dashboard.pending" bookings={board.pending} field="check_in_at" />
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-7">
+            <BookingList titleKey="dashboard.today" bookings={board.today} field="check_in_at" />
+          </div>
+          <div className="lg:col-span-5">
+            <BookingList
+              titleKey="dashboard.checkIns"
+              bookings={board.checkIns}
+              field="check_in_at"
+            />
+          </div>
+          <div className="lg:col-span-5">
+            <BookingList
+              titleKey="dashboard.checkOuts"
+              bookings={board.checkOuts}
+              field="check_out_at"
+            />
+          </div>
+          <div className="lg:col-span-7">
+            <BookingList
+              titleKey="dashboard.pending"
+              bookings={board.pending}
+              field="check_in_at"
+            />
+          </div>
         </div>
 
-        <Panel>
-          <div className="px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-slate-900">{t('dashboard.available')}</h2>
-          </div>
-          {board.availableProperties.length === 0 ? (
-            <p className="border-t border-slate-100 px-5 py-6 text-sm text-slate-600">
-              {t('dashboard.none')}
-            </p>
-          ) : (
-            <ul className="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-4">
-              {board.availableProperties.map((property) => (
-                <li key={property.id}>
-                  <Link
-                    href={`/properties/${property.id}`}
-                    className="inline-flex rounded-sm bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200 ring-inset hover:bg-emerald-100"
-                  >
-                    {property.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Panel className="overflow-hidden lg:col-span-7">
+            <div className="px-5 py-4">
+              <h2 className="font-display text-lg font-semibold text-slate-900">
+                {t('dashboard.available')}
+              </h2>
+            </div>
+            {board.availableProperties.length === 0 ? (
+              <p className="border-t border-slate-100 px-5 py-8 text-sm text-slate-600">
+                {t('dashboard.none')}
+              </p>
+            ) : (
+              <ul className="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-5">
+                {board.availableProperties.map((property) => (
+                  <li key={property.id}>
+                    <Link
+                      href={`/properties/${property.id}`}
+                      className="inline-flex rounded-lg bg-brand-100 px-3 py-1.5 text-xs font-semibold text-brand-900 transition hover:bg-brand-200"
+                    >
+                      {property.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
-        <Panel>
-          <dl>
-            <DataRow label={t('dashboard.business')} value={context.business_name} />
-            <DataRow label={t('dashboard.role')} value={t(`role.${context.role}`)} />
-            <DataRow label={t('dashboard.members')} value={context.member_count} />
-          </dl>
-        </Panel>
+          <Panel className="overflow-hidden lg:col-span-5">
+            <dl>
+              <DataRow label={t('dashboard.business')} value={context.business_name} />
+              <DataRow label={t('dashboard.role')} value={t(`role.${context.role}`)} />
+              <DataRow label={t('dashboard.members')} value={context.member_count} />
+            </dl>
+          </Panel>
+        </div>
       </div>
     </>
   );

@@ -126,11 +126,9 @@ export function CustomerNotes({
 const styles = StyleSheet.create({
   note: {
     backgroundColor: colors.surface,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 14,
-    gap: 6,
+    borderRadius: 16,
+    padding: 16,
+    gap: 7,
   },
   body: { fontSize: 14, lineHeight: 21, color: colors.text },
   meta: { fontSize: 12, color: colors.muted },

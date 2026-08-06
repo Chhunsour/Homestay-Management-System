@@ -58,6 +58,11 @@ Migrations run in filename order and are split by concern:
 | `20260804001200_bookings.sql`            | `booking_status_code` enum, `booking_statuses`, `booking_counters`, `bookings`, `booking_status_history`, the status seed trigger and back-fill, `booking_calculated_price`, `next_booking_number` |
 | `20260804001300_bookings_rls.sql`        | the six `bookings.*` permissions, REVOKE/GRANT (including the column-level `update (note, internal_note)` grant) and RLS policies for all four tables |
 | `20260804001400_bookings_rpc.sql`        | `booking_conflicts`, `check_booking_availability`, `save_booking`, `set_booking_status`, `resolve_pending_booking` |
+| `20260805000100_payments.sql`            | the four payment enums, `payments`, `payment_proofs`, `payment_adjustments`, `receipts`, `payment_counters`, `receipt_counters`, `next_payment_number`, `next_receipt_number`, `booking_payment_totals`, `booking_payment_summary` |
+| `20260805000200_payments_rls.sql`        | the six `payments.*`/`receipts.*` permissions, REVOKE/GRANT (no UPDATE or DELETE anywhere) and RLS policies for all four tables |
+| `20260805000300_payments_rpc.sql`        | `payment_duplicates`, `confirm_on_deposit`, `record_payment`, `verify_payment`, `void_payment`, `correct_payment`, `refund_payment`, `issue_receipt` |
+| `20260805000400_payment_storage.sql`     | the private `payment-proofs` bucket, `can_access_payment_object`, storage policies |
+| `20260805000500_anon_function_lockdown.sql` | revokes EXECUTE from `anon` on every function in `public` and changes the schema's default privileges so new ones start with none |
 
 > **After a migration that adds or repoints a foreign key or a function**,
 > restart PostgREST — `docker restart supabase_rest_homestay-saas`. It keeps its
@@ -262,6 +267,57 @@ automatically would undo the rule the feature exists to enforce. Query through
 the partial index (`where pending_expires_at < now() and pending_resolved_at is
 null`) and make the job idempotent so a retry does not send a second message.
 `docs/PHASE_4_BOOKINGS.md` §5 has the full reasoning.
+
+### 3.10 Storage — the `payment-proofs` bucket
+
+**Nothing to click.** Migration `20260805000400_payment_storage.sql` creates it
+the same way §3.7 creates the photo bucket, with the same `on conflict do
+update`, so it is safe to re-apply.
+
+**Storage → Buckets → `payment-proofs`** must read:
+
+| Setting             | Value                                                    |
+| ------------------- | -------------------------------------------------------- |
+| Public bucket       | **off**                                                   |
+| File size limit     | 10 MB (`10485760` bytes)                                  |
+| Allowed MIME types  | `image/jpeg`, `image/png`, `image/webp`, `application/pdf` |
+
+PDF is allowed here and not in the photo bucket because a bank transfer receipt
+often arrives as one. Object keys are laid out as:
+
+```
+businesses/{businessId}/payments/{paymentId}/{fileName}
+```
+
+Two policies, `select` and `insert`, both call
+`public.can_access_payment_object(name, '<permission>')` — the payment twin of
+`can_access_property_object`, taking the second path segment as the tenant. Both
+require `payments.manage`, which every role has — a staff member who can record a
+payment can see its evidence. There is deliberately **no update and no delete
+policy**: a payment proof is financial evidence, so an
+object that has been uploaded stays. A key that does not match the shape fails
+the regex and is refused.
+
+The proof row and the object are separate: `payment_proofs.storage_path` must
+start with the payment's own business prefix, checked by the insert policy, so a
+row cannot point at another tenant's file even if the object policy were somehow
+bypassed.
+
+### 3.11 Receipt and payment numbering — nothing to click
+
+`payment_counters` and `receipt_counters` are keyed `(business_id, year)` and
+have RLS on with no policy at all, so no client can read either one — a counter
+is a per-tenant volume figure. `next_payment_number()` and
+`next_receipt_number()` are the only readers, they are revoked from
+`authenticated`, and they take the year from the business's own
+`business_settings.timezone` rather than the server's clock, so a business in
+Phnom Penh rolls over to `RC-2027-000001` at its own midnight.
+
+Concurrency is handled by `insert … on conflict (business_id, year) do update set
+last_number = counters.last_number + 1 returning last_number`: the upsert holds a
+row lock for the rest of the transaction, so two simultaneous receipts queue
+instead of colliding. Nothing needs a sequence, and nothing needs an advisory
+lock.
 
 ---
 

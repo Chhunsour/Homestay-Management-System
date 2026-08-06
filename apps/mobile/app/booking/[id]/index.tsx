@@ -383,14 +383,14 @@ const styles = StyleSheet.create({
   },
   status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusText: { fontSize: 14, fontWeight: '500', color: colors.text },
-  section: { fontSize: 16, fontWeight: '600', color: colors.text, paddingTop: 8 },
+  section: { fontSize: 18, fontWeight: '700', color: colors.text, paddingTop: 8 },
   audit: { fontSize: 12, color: colors.muted, textAlign: 'center' },
 
   conflict: {
     backgroundColor: '#fffbeb',
     borderColor: '#fde68a',
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 14,
     padding: 12,
     gap: 6,
   },

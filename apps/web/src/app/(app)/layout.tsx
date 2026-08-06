@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const t = createTranslator(locale);
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-dvh bg-canvas md:grid md:grid-cols-[17rem_minmax(0,1fr)]">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-sm focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow"
@@ -27,25 +27,49 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {t('nav.dashboard')}
       </a>
 
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight text-slate-900">
+      <aside className="border-b border-line bg-surface/95 md:sticky md:top-0 md:flex md:h-dvh md:flex-col md:border-r md:border-b-0">
+        <header className="px-4 py-4 md:block md:px-5 md:pb-5 md:pt-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-900 font-display text-xl font-semibold text-white shadow-sm"
+            >
+              H
+            </span>
+            <div className="min-w-0">
+              <p className="font-display text-lg font-semibold leading-tight text-slate-900">
+                {t('app.name')}
+              </p>
+              <p className="truncate text-xs text-slate-500">{context.business_name}</p>
+            </div>
+          </div>
+          <div className="hidden items-center gap-2 pt-4 md:flex">
+            <Badge>{t(`role.${context.role}`)}</Badge>
+          </div>
+          <div className="mt-3 flex w-full items-center justify-between gap-3 border-t border-line pt-3 md:hidden">
+            <LanguageSwitcher locale={locale} />
+            <SignOutButton locale={locale} variant="ghost" />
+          </div>
+        </header>
+
+        <Sidebar />
+
+        <footer className="mt-auto hidden border-t border-line p-4 md:block">
+          <p className="mb-3 truncate px-1 text-xs font-medium text-slate-500">
             {context.business_name}
-          </span>
-          <Badge>{t(`role.${context.role}`)}</Badge>
-        </div>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher locale={locale} />
-          <SignOutButton locale={locale} variant="secondary" />
-        </div>
-      </header>
+          </p>
+          <div className="grid gap-2">
+            <LanguageSwitcher locale={locale} />
+            <SignOutButton locale={locale} variant="secondary" />
+          </div>
+        </footer>
+      </aside>
 
-      <div className="md:flex">
-        <aside className="border-b border-line bg-surface md:min-h-[calc(100vh-57px)] md:w-56 md:shrink-0 md:border-b-0 md:border-r">
-          <Sidebar />
-        </aside>
-
-        <main id="main" className="min-w-0 flex-1 px-4 py-6 md:px-8">
+      <div className="min-w-0">
+        <main
+          id="main"
+          className="app-shell-main min-w-0 px-4 py-7 sm:px-6 md:px-8 md:py-10 xl:px-12"
+        >
           {children}
         </main>
       </div>

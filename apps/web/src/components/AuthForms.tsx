@@ -41,9 +41,10 @@ function StateAlert({ state }: { state: ActionState }) {
 
 function Heading({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-      {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
+    <div className="mb-7">
+      <span aria-hidden="true" className="mb-4 block h-1 w-10 rounded-full bg-accent-500" />
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900">{title}</h1>
+      {subtitle ? <p className="mt-2 text-sm leading-6 text-slate-600">{subtitle}</p> : null}
     </div>
   );
 }
@@ -80,7 +81,7 @@ export function SignInForm({
   const errorFor = useFieldError(state);
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-6 sm:p-8">
       <Heading title={t('auth.signIn.title')} subtitle={t('auth.signIn.subtitle')} />
 
       {phoneEnabled ? (
@@ -93,7 +94,7 @@ export function SignInForm({
               aria-selected={method === option}
               onClick={() => setMethod(option)}
               className={cx(
-                'flex-1 rounded-sm border px-3 py-1.5 text-sm font-medium',
+                'min-h-11 flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition',
                 method === option
                   ? 'border-brand-600 bg-brand-50 text-brand-800'
                   : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
@@ -186,7 +187,7 @@ export function SignUpForm({ providers }: { providers: readonly AuthProvider[] }
   const errorFor = useFieldError(state);
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-6 sm:p-8">
       <Heading title={t('auth.signUp.title')} subtitle={t('auth.signUp.subtitle')} />
 
       <div className="space-y-4">
@@ -266,7 +267,7 @@ export function ForgotPasswordForm() {
   const errorFor = useFieldError(state);
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-6 sm:p-8">
       <Heading title={t('auth.forgot.title')} subtitle={t('auth.forgot.subtitle')} />
 
       <div className="space-y-4">
@@ -297,7 +298,7 @@ export function ResetPasswordForm() {
   const errorFor = useFieldError(state);
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-6 sm:p-8">
       <Heading title={t('auth.reset.title')} />
 
       <div className="space-y-4">
@@ -350,7 +351,7 @@ export function VerifyPhoneForm({ phone }: { phone: string }) {
   const errorFor = useFieldError(state);
 
   return (
-    <div className="panel p-6">
+    <div className="panel p-6 sm:p-8">
       <Heading
         title={t('auth.verify.title')}
         subtitle={t('auth.verify.subtitlePhone', { target: phone })}
